@@ -13,10 +13,7 @@ from save_and_load import *
 import sys
 import screeninfo
 
-# TODO: some fatal bug with historyEntry and get_adjacent and loading and undo
 # TODO: line temp draw (makes use of the save_image)
-# TODO: undo/redo re-load to deal with canvases of dif. resolutions in history (apparent after resizing screen)
-# TODO: undo bug removes two at once only for line objects, Bucket draws twice (note the double 'finished drawing' print)
 # TODO: Multiprocressing for undo, fill, etc (tools that take a lot of time), and STOP button (to stop an auto draw midway)
 # TODO: split tools into individual objects in a separate file, as children of toolbelt
 # TODO: properly align canvas & add gui area of screen (adjusts to resizing)
@@ -57,7 +54,7 @@ class Pixel:
     selected: bool
 
     def __init__(self, coord: tuple[int, int], colour: tuple[int, int, int] | None,
-                 pos: tuple[float, float] | None, size: float = 1.0, alpha: float = 0.0) -> None:
+                 pos: tuple[float, float] | None, size: float = 1.0, alpha: float = 1.0) -> None:
         """create a new pixel (when loading grid or erasing)"""
         self.rgb = colour
         self.alpha = alpha
@@ -158,7 +155,7 @@ class Pixel:
                                                  relative_rgba=relative_rgba, colour=colour, opacity=opacity - alpha_dim,
                                                  overwrite=overwrite, alpha_dim=alpha_dim, tolerance=tolerance,
                                                  alpha_tolerate=alpha_tolerate, draw_inloop=draw_inloop, adj_index=adj_index,
-                                                 spiral=spiral)
+                                                 spiral=spiral, keep_mass=keep_mass)
                             visited.update(more)
             elif not spiral:
                 index, curr_alpha = 0, opacity
@@ -210,6 +207,11 @@ class History:
     def __len__(self) -> int:
         """length of history"""
         return len(self.past) + len(self.future)
+
+    def __str__(self) -> str:
+        """prints a list which is the course of actions (from historyEntries)"""
+        lst = [x.action for x in self.past.to_list()] + [x.action + '(undid)' for x in self.future.to_list()]
+        return ', '.join(lst)
 
     def no_future(self) -> bool:
         """checks if there is only one thing left"""
@@ -402,7 +404,7 @@ class HexCanvas:
             print('started drawing')
         else:
             self.drawing = False
-            self.history.override(HistoryEntry(self))
+            # self.history.override(HistoryEntry(self, tool.type))
             tool.positions = []
 
             # global RECURSION_STAT
@@ -410,23 +412,31 @@ class HexCanvas:
             # RECURSION_STAT = 0
             print('finished drawing')
 
-    def undo(self) -> None:
+    def undo(self, screen: pygame.Surface) -> None:
         """returns board to a previous state in history"""
         if self.history.travel_back():  # this also mutates the history (in .travel_back() if it's true)
             self.temp_state = self.layers
             new_canvas = self.history.get_history_point()
+
+            # check if the new_canvas we're updating to has different pixel size to detect resize
+            if new_canvas.layers[0][0][0].size != self.temp_state[0][0][0].size:
+                new_canvas.position_pixels(screen)
             self.refresh_self(new_canvas)
             self.needs_redraw = True
 
-    def redo(self) -> None:
+    def redo(self, screen: pygame.Surface) -> None:
         """returns board to a future state in history"""
         if self.history.travel_forward():  # this also mutates the history (in .travel_back() if it's true)
             self.temp_state = self.layers
             new_canvas = self.history.get_history_point()
+
+            # check if the new_canvas we're updating to has different pixel size to detect resize
+            if new_canvas.layers[0][0][0].size != self.temp_state[0][0][0].size:
+                new_canvas.position_pixels(screen)
             self.refresh_self(new_canvas)
             self.needs_redraw = True
 
-    def redraw_canv(self, screen: pygame.Surface) -> None:
+    def redraw_canv(self, screen: pygame.Surface, force_config: bool = False) -> None:
         """redraws the entire canvas (avoid using this unless you need to, since it takes time"""
         if self.needs_redraw:  # just to make sure
             for layer in range(0, len(self.layers)):
@@ -436,8 +446,9 @@ class HexCanvas:
                         old_pixel = None
                         if self.temp_state and len(self.temp_state[layer]) > row and len(self.temp_state[layer][row]) > pixel:
                             old_pixel = self.temp_state[layer][row][pixel]
-                        if not old_pixel or not new_pixel.is_copy(old_pixel):
+                        if (not old_pixel or not new_pixel.is_copy(old_pixel)) or force_config:
                             pygame_configure.draw_hexagon(screen, new_pixel.rgb, new_pixel.position, new_pixel.size)
+        print('redrew canvas')
         self.needs_redraw = False
 
     def refresh_self(self, new: HexCanvas | HistoryEntry) -> None:
@@ -487,7 +498,6 @@ class HexCanvas:
                     lst.append(lyr)
                 self.layers = lst
                 self.history.wipe()
-                self.history.past.append(HistoryEntry(self))
             else:
                 print('failed to load file')
                 return
@@ -509,11 +519,13 @@ class HistoryEntry:
     height: int
     layers: list[list[list[Pixel]]]
     background: tuple[int, int, int] | None
+    action: str  # most recent tool action performed (that got it to this canvas)
 
-    def __init__(self, canv: HexCanvas) -> None:
+    def __init__(self, canv: HexCanvas, action: str) -> None:
         self.width, self.height = canv.width, canv.height
         self.background = canv.background
         self.layers = []
+        self.action = action
         for layer in canv.layers:
             lyr = []
             for row in layer:
@@ -548,6 +560,25 @@ class HistoryEntry:
         if update:
             self.layers[layer][coord[1]][coord[0]].adj = act_adj
         return act_adj
+
+    def position_pixels(self, screen: pygame.Surface) -> None:
+        """assuming a pygame screen has been made, attribute the position for every pixel"""
+        root3 = math.sqrt(3)
+        margin_horiz, margin_vert = 0.5, 0.9
+        w, h = screen.get_width() * margin_horiz, screen.get_height() * margin_vert
+        n, m = self.width, self.height
+        r = min(w / (root3 * (n + 0.5)), h / (1.5 * m + 0.5))  # pixel radius
+        x_offset = screen.get_width() * (1 - margin_horiz) / 2
+        y_offset = screen.get_height() * (1 - margin_vert) / 2
+
+        for layer in range(0, len(self.layers)):
+            for i in range(0, m):
+                for j in range(0, n):
+                    extra_offset = 0.5 if i % 2 == 0 else 1
+                    x = r * root3 * (extra_offset + j)
+                    y = r * (1 + 1.5 * i)
+                    self.layers[layer][i][j].position = (x_offset + x, y_offset + y)
+                    self.layers[layer][i][j].size = r
 
 
 class ToolBelt:
@@ -600,8 +631,8 @@ class ToolBelt:
         self.alpha_tolerate = True
         self.globally = False
         self.spiral = False
-        self.alpha_dim = 0.1
-        self.keep_mass = False
+        self.alpha_dim = 0.005  # set to 0 for normal bucket behaviour
+        self.keep_mass = True  # if there should be a specific amount of paint based on alpha_diminish
 
     def change_colour(self, rgb: tuple[int, int, int], alpha: float, main_col: bool):
         """updates colour"""
@@ -657,7 +688,8 @@ class ToolBelt:
                     changed = pixel.paint_adj(visited=visited, pix_queue=pix_queue, relative_rgba=original_rgba,
                                               canv=canv, screen=screen, colour=col, opacity=alpha, overwrite=self.overwrite,
                                               alpha_dim=self.alpha_dim, tolerance=self.tolerance,
-                                              alpha_tolerate=self.alpha_tolerate, draw_inloop=True, spiral=self.spiral)
+                                              alpha_tolerate=self.alpha_tolerate, draw_inloop=True, spiral=self.spiral,
+                                              keep_mass=self.keep_mass)
                     return list(changed), False
             else:
                 return [], False
@@ -694,7 +726,7 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
     screen = pygame_configure.initialize_pygame_window(size[0], size[1])
     canv = HexCanvas(canv_size)
     canv.position_pixels(screen)
-    canv.history.past.append(HistoryEntry(canv))
+    canv.history.past.append(HistoryEntry(canv, 'NEW'))
     tool = ToolBelt()
     layer = 0
 
@@ -710,6 +742,7 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
 
     running = True
     loop_save = {'pixel_history': []}
+    just_finished_drawing, just_loaded = False, False
 
     while running:
         for event in pygame.event.get():
@@ -717,25 +750,33 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
                 running = False
             elif event.type == pygame.VIDEORESIZE:
                 canv.load(screen, use_current=True)
+                just_loaded = True
             elif event.type == pygame.KEYDOWN and pygame.key.get_mods() & pygame.KMOD_CTRL and not canv.drawing:
-                if event.key == pygame.K_z:
-                    canv.undo()
-                elif event.key == pygame.K_y:
-                    canv.redo()
-                elif event.key == pygame.K_s:
+                if event.key == pygame.K_z:  # undo action
+                    canv.undo(screen)
+                elif event.key == pygame.K_y:  # redo action
+                    canv.redo(screen)
+                elif event.key == pygame.K_h:  # print the history of actions in the console
+                    print(canv.history)
+                elif event.key == pygame.K_s:  # save file
                     canv.save()
-                elif event.key == pygame.K_l:
+                elif event.key == pygame.K_l:  # load save file
                     canv.load(screen)
-                elif event.key == pygame.K_p:
+                    just_loaded = True
+                elif event.key == pygame.K_p:  # print screen
                     pygame_configure.screen_as_image(screen, None)
+                elif event.key == pygame.K_d:  # manual force redraw canvas
+                    canv.needs_redraw = True
+                    canv.redraw_canv(screen, force_config=True)
             elif event.type == pygame.KEYDOWN and event.key in KEYBINDS:
                 tool.type = KEYBINDS[event.key]
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_RSHIFT:
                 tool.colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not canv.drawing:
                 canv.drawing_mode(True, tool)
-            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and canv.drawing:
                 canv.drawing_mode(False, tool)
+                just_finished_drawing = True
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 3:  # colour picker
                 x, y = pygame.mouse.get_pos()
                 pixel = canv.pos_gets_pixel(layer, x, y, screen)
@@ -760,6 +801,7 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
                     fix_pixels = list(canv.get_line(pix1[0], pix2[0], canv.layers[layer][0][0].size, screen,
                                                     layer, col, alpha, tool.overwrite, False))
 
+            # applying the tool action
             if pixel or (tool.type in {'LINE', 'PAINT_LINE'} and len(tool.positions) > 0):
                 pix_to_colour, temporary = tool.onclick(pixel, canv, screen, layer, (x, y), canv.layers[layer][0][0].size)
                 loop_save['pixels_tobe_coloured'] = pix_to_colour + fix_pixels
@@ -771,6 +813,7 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
 
             if tool.type in CLICK_TOOLS:
                 canv.drawing_mode(False, tool)
+                canv.history.override(HistoryEntry(canv, tool.type))
         else:
             if tool.type in RECOLOUR_TOOLS and 'pixels_tobe_coloured' in loop_save:  # if this tool is one that recolours pixels
                 for pix in loop_save['pixels_tobe_coloured']:
@@ -780,8 +823,22 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
                 loop_save['pixels_tobe_coloured'] = []
             loop_save['pixel_history'] = []
 
+        if just_finished_drawing:
+            # used to be in canv.drawing_mode, but it caused problems since some tools
+            # only recolour pixels to canvas after the event calls (in which drawing_mode is called)
+            canv.history.override(HistoryEntry(canv, tool.type))
+
         if canv.needs_redraw:
-            canv.redraw_canv(screen)
+            if just_loaded:
+                canv.redraw_canv(screen, force_config=True)
+            else:
+                canv.redraw_canv(screen, force_config=False)
+
+        if just_loaded and len(canv.history) < 1:
+            canv.history.past.append(HistoryEntry(canv, 'LOAD'))
+        just_finished_drawing = False
+        just_loaded = False
+
         pygame.display.flip()
 
     pygame.quit()
