@@ -34,6 +34,57 @@ SCREEN_SIZES = [(int(SCREEN_W * (x / 100)), int(SCREEN_H * (x / 100))) for x in 
 # RECURSION_STAT = 0
 
 
+class CanvasADT:
+    """parent class of HexCanvas and HistoryEntry"""
+    width: int
+    height: int
+    layers: list[list[list[Pixel]]]
+    background: tuple[int, int, int] | None
+
+    def get_adjacent_pixels(self, layer: int,
+                            coord: tuple[int, int], update: bool = False) -> list[Pixel]:
+        """get a pixel's adjacent pixel objects in an already made canvas/historyEntry
+        adjacents start from left adjacent pixel then goes around the pixel clockwise
+
+        Preconditions:
+            - self.grid[coord[0]][coord[1]] is a valid Pixel
+        """
+        x, y = coord
+        x_range, y_range = self.width - 1, self.height - 1
+        if y % 2 == 0:
+            pot_adj = [(x - 1, y), (x - 1, y - 1), (x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y + 1)]
+        else:
+            pot_adj = [(x - 1, y), (x, y - 1), (x + 1, y - 1), (x + 1, y), (x + 1, y + 1), (x, y + 1)]
+        act_adj = []
+
+        for adj in pot_adj:
+            if 0 <= adj[0] <= x_range and 0 <= adj[1] <= y_range:
+                adj_pixel = self.layers[layer][adj[1]][adj[0]]
+                act_adj.append(adj_pixel)
+        if update:
+            self.layers[layer][coord[1]][coord[0]].adj = act_adj
+        return act_adj
+
+    def position_pixels(self, screen: pygame.Surface) -> None:
+        """assuming a pygame screen has been made, attribute the position for every pixel in a canvas/historyentry"""
+        root3 = math.sqrt(3)
+        margin_horiz, margin_vert = 0.5, 0.9
+        w, h = screen.get_width() * margin_horiz, screen.get_height() * margin_vert
+        n, m = self.width, self.height
+        r = min(w / (root3 * (n + 0.5)), h / (1.5 * m + 0.5))  # pixel radius
+        x_offset = screen.get_width() * (1 - margin_horiz) / 2
+        y_offset = screen.get_height() * (1 - margin_vert) / 2
+
+        for layer in range(0, len(self.layers)):
+            for i in range(0, m):
+                for j in range(0, n):
+                    extra_offset = 0.5 if i % 2 == 0 else 1
+                    x = r * root3 * (extra_offset + j)
+                    y = r * (1 + 1.5 * i)
+                    self.layers[layer][i][j].position = (x_offset + x, y_offset + y)
+                    self.layers[layer][i][j].size = r
+
+
 class Pixel:
     """A pixel on the grid
 
@@ -252,7 +303,7 @@ class History:
         self.future = LinkedList([])
 
 
-class HexCanvas:
+class HexCanvas(CanvasADT):
     """the grid where all the pixels live
 
     Instance Attributes:
@@ -263,10 +314,6 @@ class HexCanvas:
             (if it's None then it's an empty canvas (this is dif than a white canvas)
         -
     """
-    width: int
-    height: int
-    layers: list[list[list[Pixel]]]
-    background: tuple[int, int, int] | None
     history: History
     drawing: bool
     needs_redraw: bool
@@ -296,7 +343,7 @@ class HexCanvas:
             # update every pixel's adjacent attribute now that the grid is complete
             for row in self.layers[0]:
                 for pixel in row:
-                    get_adjacent_pixels(self, 0, pixel.coord, True)
+                    self.get_adjacent_pixels(0, pixel.coord, True)
         else:
             self.layers.append(load_canvas)
             self.size = (len(load_canvas), len(load_canvas[0]))
@@ -389,7 +436,7 @@ class HexCanvas:
 
         # check if the new_canvas we're updating to has different pixel size to detect resize
         if new_canvas.layers[0][0][0].size != self.temp_state[0][0][0].size:
-            position_pixels(new_canvas, screen)
+            new_canvas.position_pixels(screen)
         self.refresh_self(new_canvas)
         self.needs_redraw = True
 
@@ -423,7 +470,7 @@ class HexCanvas:
             self.layers.append(lyr)
             for row in self.layers[-1]:
                 for pixel in row:
-                    get_adjacent_pixels(self, len(self.layers) - 1, pixel.coord, True)
+                    self.get_adjacent_pixels(len(self.layers) - 1, pixel.coord, True)
 
     def save(self) -> None:
         """save the file as a project file (not an export image)"""
@@ -460,22 +507,18 @@ class HexCanvas:
                 return
 
         self.width, self.height = len(self.layers[0][0]), len(self.layers[0])
-        position_pixels(self, screen)
+        self.position_pixels(screen)
         for row in self.layers[0]:
             for pixel in row:
-                get_adjacent_pixels(self, 0, pixel.coord, True)
+                self.get_adjacent_pixels(0, pixel.coord, True)
         self.needs_redraw, self.drawing = True, False
 
         # background redraw
-        refresh_ui(screen)
+        refresh_ui(screen, self)
 
 
-class HistoryEntry:
+class HistoryEntry(CanvasADT):
     """a node in history"""
-    width: int
-    height: int
-    layers: list[list[list[Pixel]]]
-    background: tuple[int, int, int] | None
     action: str  # most recent tool action performed (that got it to this canvas)
     num_affected: int  # number of pixels that were affected
 
@@ -495,7 +538,7 @@ class HistoryEntry:
             self.layers.append(lyr)
             for row in self.layers[-1]:
                 for pixel in row:
-                    get_adjacent_pixels(self, len(self.layers) - 1, pixel.coord, True)
+                    self.get_adjacent_pixels(len(self.layers) - 1, pixel.coord, True)
 
 
 class ToolBelt:
@@ -642,14 +685,14 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
     """starts the program"""
     screen = pygame_configure.initialize_pygame_window(size[0], size[1])
     canv = HexCanvas(canv_size)
-    position_pixels(canv, screen)
+    canv.position_pixels(screen)
     canv.history.past.append(HistoryEntry(canv, 'NEW'))
     tool = ToolBelt()
     layer = 0
 
     sys.setrecursionlimit(size[0] * size[1])
 
-    refresh_ui(screen)
+    refresh_ui(screen, canv)
 
     # create the pixels for the first layer grid
     # for row in canv.layers[0]:
@@ -763,7 +806,7 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
     pygame.quit()
 
 # test program:
-# open_program((650, 650), (40, 40), (255, 255))
+# open_program(SCREEN_SIZES[12], (40, 40), (100, 100))
 
 
 def pix_dict_to_pixel(pd: dict) -> Pixel:
@@ -777,55 +820,12 @@ def pix_dict_to_pixel(pd: dict) -> Pixel:
     return p
 
 
-def refresh_ui(screen: pygame.Surface) -> None:
+def refresh_ui(screen: pygame.Surface, canv: HexCanvas) -> None:
     """refreshes the UI"""
-
+    # set up background image
     # crop_rect = pygame.Rect(0, 0, 2000, 1000)  # (x, y, width, height)
     editor_bg = pygame.image.load("images/checker_bg.png")  # .subsurface(crop_rect)
     screen.blit(editor_bg, (0, 0))
+    # set up canvas border
+    # pygame_configure.draw_border(screen=screen, canv=canv)
     print('Dude, add some UI already')
-
-
-def get_adjacent_pixels(canvas: HexCanvas | HistoryEntry, layer: int,
-                        coord: tuple[int, int], update: bool = False) -> list[Pixel]:
-    """get a pixel's adjacent pixel objects in an already made canvas/historyEntry
-    adjacents start from left adjacent pixel then goes around the pixel clockwise
-
-    Preconditions:
-        - self.grid[coord[0]][coord[1]] is a valid Pixel
-    """
-    x, y = coord
-    x_range, y_range = canvas.width - 1, canvas.height - 1
-    if y % 2 == 0:
-        pot_adj = [(x - 1, y), (x - 1, y - 1), (x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y + 1)]
-    else:
-        pot_adj = [(x - 1, y), (x, y - 1), (x + 1, y - 1), (x + 1, y), (x + 1, y + 1), (x, y + 1)]
-    act_adj = []
-
-    for adj in pot_adj:
-        if 0 <= adj[0] <= x_range and 0 <= adj[1] <= y_range:
-            adj_pixel = canvas.layers[layer][adj[1]][adj[0]]
-            act_adj.append(adj_pixel)
-    if update:
-        canvas.layers[layer][coord[1]][coord[0]].adj = act_adj
-    return act_adj
-
-
-def position_pixels(canvas: HexCanvas | HistoryEntry, screen: pygame.Surface) -> None:
-    """assuming a pygame screen has been made, attribute the position for every pixel in a canvas/historyentry"""
-    root3 = math.sqrt(3)
-    margin_horiz, margin_vert = 0.5, 0.9
-    w, h = screen.get_width() * margin_horiz, screen.get_height() * margin_vert
-    n, m = canvas.width, canvas.height
-    r = min(w / (root3 * (n + 0.5)), h / (1.5 * m + 0.5))  # pixel radius
-    x_offset = screen.get_width() * (1 - margin_horiz) / 2
-    y_offset = screen.get_height() * (1 - margin_vert) / 2
-
-    for layer in range(0, len(canvas.layers)):
-        for i in range(0, m):
-            for j in range(0, n):
-                extra_offset = 0.5 if i % 2 == 0 else 1
-                x = r * root3 * (extra_offset + j)
-                y = r * (1 + 1.5 * i)
-                canvas.layers[layer][i][j].position = (x_offset + x, y_offset + y)
-                canvas.layers[layer][i][j].size = r
