@@ -37,7 +37,7 @@ def screen_as_image(screen: pygame.Surface, canv_place: tuple[int, int, int, int
     return 'temp_images/screenshot.png'
 
 
-def draw_hexagon(screen: pygame.Surface, colour: tuple[int, int, int],
+def draw_hexagon(screen: pygame.Surface, colour: tuple[int, int, int] | tuple[int | float],
                  point: tuple[float, float], radius: float, real_time: bool = False) -> None:
     """draw a hexagon"""
     vertices = []
@@ -46,6 +46,9 @@ def draw_hexagon(screen: pygame.Surface, colour: tuple[int, int, int],
         x = point[0] + radius * math.cos(angle)
         y = point[1] + radius * math.sin(angle)
         vertices.append((x, y))
+
+    if len(colour) == 4:
+        colour = colour[:3] + (colour[3] * 255,)
 
     pygame.draw.polygon(screen, colour, vertices)
     if real_time:
@@ -98,6 +101,7 @@ def draw_hex_border(screen: pygame.Surface, line_thick: int, start_pos: tuple[fl
                 else:
                     verts = regular_polygon_vertices(x + hex_width_half, y + y_shift, radius, 6)
                     draw_g_line(verts[4], verts[5])
+
 
 def input_mouse_pygame() -> tuple[int, int]:
     """Wait for the user to click on the pygame window, and return the coordinates of the click position

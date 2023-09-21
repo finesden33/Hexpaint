@@ -7,7 +7,7 @@ import math
 canv = main.HexCanvas((50, 50))
 
 
-def test():
+def test_click():
     """testing the 'mouse click after key ignore' bug"""
     pygame.init()
     screen = pygame.display.set_mode((400, 400))
@@ -29,7 +29,9 @@ def relation_test(coord1: tuple = (2, 2), coord2: tuple = (4, 4)):
     p1, p2 = main.Pixel(coord1, (0, 0, 0), None), main.Pixel(coord2, (0, 0, 0), None)
     return p1.relation(p2)
 
+
 def hexagonal_distance(x1, y1, x2, y2):
+    """hexagonal distance?"""
     x_dif = abs(x2 - x1)
     y_dif = abs(y2 - y1)
     if (x2 < x1) and (y1 % 2 == 1):
