@@ -827,5 +827,9 @@ def refresh_ui(screen: pygame.Surface, canv: HexCanvas) -> None:
     editor_bg = pygame.image.load("images/checker_bg.png")  # .subsurface(crop_rect)
     screen.blit(editor_bg, (0, 0))
     # set up canvas border
-    # pygame_configure.draw_border(screen=screen, canv=canv)
+    pixel_ref = canv.layers[0][0][0]
+    pixel_ref2 = canv.layers[0][-1][-1]
+    pygame_configure.draw_hex_border(screen=screen, start_pos=pixel_ref.position, start_pos2=pixel_ref2.position,
+                                     line_thick=screen.get_width()//100,
+                                     rows=canv.height, cols=canv.width, radius=pixel_ref.size, colour=(0, 0, 0))
     print('Dude, add some UI already')

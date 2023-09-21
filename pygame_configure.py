@@ -52,6 +52,53 @@ def draw_hexagon(screen: pygame.Surface, colour: tuple[int, int, int],
         pygame.display.flip()
 
 
+def draw_hex_border(screen: pygame.Surface, line_thick: int, start_pos: tuple[float, float], start_pos2: tuple[float, float],
+                    rows: int, cols: int, radius: float, colour: tuple[int, int, int] = (100, 100, 100)) -> None:
+    """starts at start pos as top left hex, then draws a hex border along the canvas given the radius, rows and cols"""
+    def draw_g_line(start: tuple[float, float], end: tuple[float, float]):
+        """draw a nice line with rounded edges"""
+        pygame.draw.line(screen, colour, start, end, line_thick)
+        pygame.draw.circle(screen, colour, start, line_thick/2)
+        pygame.draw.circle(screen, colour, end, line_thick/2)
+
+    for side in range(0, 4):
+        hex_width_half = radius * math.sqrt(3 / 4)
+        side_len = cols if side % 2 == 0 else rows
+        x, y = start_pos
+        x2, y2 = start_pos2
+
+        for i in range(0, side_len):
+            if side == 0:  # top
+                verts = regular_polygon_vertices(x + i * 2 * hex_width_half, y, radius, 6)
+                draw_g_line(verts[5], verts[0])
+                draw_g_line(verts[0], verts[1])
+            elif side == 1:  # right
+                x_extra = (rows % 2 != 0) * hex_width_half  # if there's an even num of rows
+                y_shift = i * (3 / 2) * radius
+                if i % 2 == 0:
+                    verts = regular_polygon_vertices(x2 - hex_width_half + x_extra, y + y_shift, radius, 6)
+                    draw_g_line(verts[1], verts[2])
+                else:
+                    verts = regular_polygon_vertices(x2 + x_extra, y + y_shift, radius, 6)
+                    draw_g_line(verts[0], verts[1])
+                    draw_g_line(verts[1], verts[2])
+                    draw_g_line(verts[2], verts[3])
+            elif side == 2:  # bottom
+                x_extra = (rows % 2 == 0) * hex_width_half  # if there's an even num of rows
+                verts = regular_polygon_vertices(x + i * 2 * hex_width_half + x_extra, y2, radius, 6)
+                draw_g_line(verts[4], verts[3])
+                draw_g_line(verts[3], verts[2])
+            elif side == 3:  # left
+                y_shift = i * (3 / 2) * radius
+                if i % 2 == 0:
+                    verts = regular_polygon_vertices(x, y + y_shift, radius, 6)
+                    draw_g_line(verts[5], verts[0])
+                    draw_g_line(verts[4], verts[5])
+                    draw_g_line(verts[3], verts[4])
+                else:
+                    verts = regular_polygon_vertices(x + hex_width_half, y + y_shift, radius, 6)
+                    draw_g_line(verts[4], verts[5])
+
 def input_mouse_pygame() -> tuple[int, int]:
     """Wait for the user to click on the pygame window, and return the coordinates of the click position
     after the click occurs.
@@ -71,21 +118,16 @@ def input_mouse_pygame() -> tuple[int, int]:
         sys.exit(0)
 
 
-def regular_polygon_vertices(screen_width: int, screen_height: int, radius: int, n: int) -> list[tuple[int, int]]:
+def regular_polygon_vertices(mid_x: float, mid_y: float, radius: float, n: int = 6) -> list[tuple[int, int]]:
     """Return a list of vertices of a regular n-sided polygon (i.e., a polygon with n equal sides).
 
     The polygon is centred on the midpoint of the screen with the given width and height.
     radius specifies the distance between each vertex and the centre of the polygon.
 
     Preconditions:
-    - screen_width >= 2
-    - screen_height >= 2
     - radius >= 1
     - n >= 3
     """
-    mid_x = screen_width / 2
-    mid_y = screen_height / 2
-
     return [(round(mid_x + radius * math.cos(2 * math.pi * i / n - math.pi / 2)),
              round(mid_y + radius * math.sin(2 * math.pi * i / n - math.pi / 2)))
             for i in range(0, n)]
