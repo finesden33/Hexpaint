@@ -13,6 +13,8 @@ def load_file() -> Any:
             file_contents = file.read()
         assert type(file_contents) == str
         return eval(file_contents)
+    else:
+        return None
 
 
 def file_prompt() -> str | None:

@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import pygame
 import random
-import math
+
+import extra_functions
 from linked_list import LinkedList
 import pygame_configure
 from extra_functions import *
 from save_and_load import *
+import UI_elements
 import sys
 import screeninfo
 
@@ -144,8 +146,8 @@ class Pixel:
 
             else:  # erase
                 self.alpha = max(0.0, self.alpha * (1 - opacity))
-                if self.alpha == 0.0:
-                    self.rgb = None  # fully erased
+                # if self.alpha == 0.0:
+                #     self.rgb = None  # fully erased
         else:
             self.rgb = colour
             self.alpha = opacity
@@ -320,23 +322,28 @@ class HexCanvas(CanvasADT):
     needs_redraw: bool
     temp_state: list[list[list[Pixel]]]
     show_border: bool
+    start_clear: bool
 
     def __init__(self, size: tuple[int, int] = (100, 100),
                  background: tuple[int, int, int] | None = (255, 255, 255),
-                 load_canvas: list[list[Pixel]] | None = None) -> None:
+                 load_canvas: list[list[Pixel]] | None = None, start_clear: bool = False) -> None:
         self.layers = []
         self.drawing = False
         self.needs_redraw = True
         self.history = History()
         self.temp_state = []
         self.show_border = True
+        self.start_clear = start_clear
 
         if not load_canvas:
             new_grid = []
             for i in range(0, size[1]):  # i.e. each i is a y coord (lower down on grid is a higher y coord)
                 row = []
                 for j in range(0, size[0]):  # i.e. each j is an x coord (rightward on grid is a higher x coord)
-                    new_pixel = Pixel((j, i), background, None, alpha=1.0)
+                    if start_clear:
+                        new_pixel = Pixel((j, i), background, None, alpha=0.0)
+                    else:
+                        new_pixel = Pixel((j, i), background, None, alpha=1.0)
                     row.append(new_pixel)
                 new_grid.append(row)
             self.layers.append(new_grid)
@@ -489,7 +496,7 @@ class HexCanvas(CanvasADT):
             lst.append(lyr)
         create_file(lst)
 
-    def load(self, screen: pygame.Surface, use_current: bool = False) -> None:
+    def load(self, screen: pygame.Surface, use_current: bool = False) -> bool:
         """loads a valid file to remake the canvas object"""
         if not use_current:
             new_canvas_layers = load_file()
@@ -508,7 +515,7 @@ class HexCanvas(CanvasADT):
                 self.history.wipe()
             else:
                 print('failed to load file')
-                return
+                return False
 
         self.width, self.height = len(self.layers[0][0]), len(self.layers[0])
         self.position_pixels(screen)
@@ -516,6 +523,7 @@ class HexCanvas(CanvasADT):
             for pixel in row:
                 self.get_adjacent_pixels(0, pixel.coord, True)
         self.needs_redraw, self.drawing = True, False
+        return True
 
 
 class HistoryEntry(CanvasADT):
@@ -576,6 +584,10 @@ class ToolBelt:
     alpha_dim: float
     keep_mass: bool
 
+    hue: int
+    saturation: int
+    velocity: int
+
     def __init__(self):
         """create a tool object"""
         self.type = 'PENCIL'
@@ -594,6 +606,8 @@ class ToolBelt:
         self.spiral = False
         self.alpha_dim = 0.02  # set to 0 for normal bucket behaviour
         self.keep_mass = True  # if there should be a specific amount of paint based on alpha_diminish
+
+        self.hue, self.saturation, self.velocity = 0, 0, 0
 
     def change_colour(self, rgb: tuple[int, int, int], alpha: float, main_col: bool):
         """updates colour"""
@@ -661,6 +675,7 @@ class ToolBelt:
                 self.colour, self.opacity = pixel.rgb, pixel.alpha
             else:
                 self.colour2, self.opacity2 = pixel.rgb, pixel.alpha
+
             return [], False
 
         elif self.type in {'LINE', 'PAINT_LINE'}:
@@ -688,31 +703,120 @@ class UI:
     border_cols: tuple[tuple[int, int, int], tuple[int, int, int]]
     canvas: HexCanvas
     screen: pygame.Surface
+    tool: ToolBelt
+    elements: dict[str, UI_elements.UIelement]
+    click_mode: bool
+    clicking: UI_elements.UIelement | None
 
     def __init__(self, screen_size: tuple[int, int], canv_size: tuple[int, int]) -> None:
         self.background = "images/checker_bg.png"
         self.border_cols = ((50, 50, 50), (90, 90, 90))
         self.screen = pygame_configure.initialize_pygame_window(screen_size[0], screen_size[1])
         self.canvas = HexCanvas(canv_size)
+        self.tool = ToolBelt()
         self.canvas.position_pixels(self.screen)
         self.canvas.history.past.append(HistoryEntry(self.canvas, 'NEW'))
+        self.click_mode = False
+        self.clicking = None
 
-    def refresh_ui(self) -> None:
+        # element generation
+        self.elements = {
+            'hue_slider': UI_elements.Slider(height=20, width=250, orientation='horizontal', affect=self.tool.hue,
+                                             sing_click=False, images=["images/huebar.png"], position=(20, 20),
+                                             val_range=(0, 360), etype='hue'),
+            'saturation_slider': UI_elements.Slider(height=20, width=250, orientation='horizontal', affect=self.tool.saturation,
+                                                    sing_click=False, images=["images/sliderbar.png"], position=(20, 50),
+                                                    val_range=(0, 100), etype='saturation'),
+            'velocity_slider': UI_elements.Slider(height=20, width=250, orientation='horizontal', affect=self.tool.velocity,
+                                                  sing_click=False, images=["images/sliderbar.png"], position=(20, 80),
+                                                  val_range=(0, 100), etype='velocity')
+        }
+
+    def refresh_ui(self, only_elements: bool = False) -> None:
         """refreshes the UI"""
-        # set up background image
-        # crop_rect = pygame.Rect(0, 0, 2000, 1000)  # (x, y, width, height)
-        editor_bg = pygame.image.load(self.background)  # .subsurface(crop_rect)
-        self.screen.blit(editor_bg, (0, 0))
-        # set up canvas border
-        pixel_ref = self.canvas.layers[0][0][0]
-        pixel_ref2 = self.canvas.layers[0][-1][-1]
-        if self.canvas.show_border:
-            widths = (100, 200)
-            for i in range(2):
-                pygame_configure.draw_hex_border(screen=self.screen, start_pos=pixel_ref.position, start_pos2=pixel_ref2.position,
-                                                 line_thick=self.screen.get_width() // widths[i], colour=self.border_cols[i],
-                                                 rows=self.canvas.height, cols=self.canvas.width, radius=pixel_ref.size)
-        print('Dude, add some UI already')
+        if not only_elements:
+            # set up background image
+            # crop_rect = pygame.Rect(0, 0, 2000, 1000)  # (x, y, width, height)
+            editor_bg = pygame.image.load(self.background)  # .subsurface(crop_rect)
+            self.screen.blit(editor_bg, (0, 0))
+            # set up canvas border
+            pix_ref = self.canvas.layers[0][0][0]
+            pix_ref2 = self.canvas.layers[0][-1][-1]
+            if self.canvas.show_border:
+                widths = (100, 200)
+                for i in range(2):
+                    pygame_configure.draw_hex_border(screen=self.screen, start_pos=pix_ref.position, start_pos2=pix_ref2.position,
+                                                     line_thick=self.screen.get_width() // widths[i], colour=self.border_cols[i],
+                                                     rows=self.canvas.height, cols=self.canvas.width, radius=pix_ref.size)
+
+        for e in self.elements:
+            self.elements[e].draw(self.screen)
+
+        # pygame_configure.draw_hexagon(self.screen, (0, 0, 0) + (0.3,), (99.9, 99.9), 20.0)
+
+    def not_on_canvas(self, mouse_x: float, mouse_y: float) -> bool:
+        """returns whether the mouse is currently on hovering the canvas"""
+        pix_ref = self.canvas.layers[0][0][0]
+        x_in_scope = (pix_ref.position[0] - pix_ref.size * 2 < mouse_x < pix_ref.position[0] +
+                      self.canvas.width * pix_ref.size * math.sqrt(3 / 4) * 2)
+        y_in_scope = (pix_ref.position[1] - pix_ref.size * 2 < mouse_y < pix_ref.position[1] +
+                      self.canvas.height * pix_ref.size * 3 / 2)
+        return not (x_in_scope and y_in_scope)
+
+    def during_click_mode(self, x: int, y: int) -> None:
+        """what happens when you are clicking (dragging or whatnot) and element"""
+        if not self.clicking:  # if we haven't found the element that we're clicking, search for it
+            for element in self.elements:
+                e = self.elements[element]
+                if e.mouse_pos(x, y):  # if we're hovering it
+                    self.clicking = e  # then save that element as the one we're dealing with, until click mode is over
+            if not self.clicking:  # if we failed to find an element where you clicked
+                self.clicking_mode_switch(False)
+        else:
+            def recolour_action() -> None:
+                """helper function"""
+                t = self.tool
+                new_col = extra_functions.hsv_to_rgb(t.hue, t.saturation, t.velocity)
+                t.change_colour(new_col, t.opacity, True)
+                print(new_col)
+
+            # extra actions based on element type
+            if self.clicking.etype == 'hue':
+                self.tool.hue = self.clicking.on_click(self.screen, x, y)
+                recolour_action()
+            elif self.clicking.etype == 'saturation':
+                self.tool.saturation = self.clicking.on_click(self.screen, x, y)
+                recolour_action()
+            elif self.clicking.etype == 'velocity':
+                self.tool.velocity = self.clicking.on_click(self.screen, x, y)
+                recolour_action()
+            else:
+                self.clicking.affect = self.clicking.on_click(self.screen, x, y)
+
+            if self.clicking.sing_click:  # if our element that we're dealing with is a single click element
+                self.clicking_mode_switch(False)
+
+    def clicking_mode_switch(self, activation: bool = False):
+        """activates/deactivates clicking mode"""
+        if activation:
+            self.click_mode = True
+        else:
+            self.click_mode = False
+            self.clicking = None
+
+    def update_colour_ui(self, hsv: tuple[int, int, int]) -> None:
+        """this was made for the colour picker to update the colour sliders"""
+        self.tool.hue, self.tool.saturation, self.tool.velocity = hsv
+        for element in self.elements:
+            e = self.elements[element]
+            if e.etype == 'hue':
+                e.draw(self.screen, hsv[0])
+            elif e.etype == 'saturation':
+                e.draw(self.screen, hsv[1])
+            elif e.etype == 'velocity':
+                e.draw(self.screen, hsv[2])
+                print('hello there')
+        self.refresh_ui(only_elements=True)
 
 
 def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] = (65, 65)) -> None:
@@ -720,7 +824,6 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
     sys.setrecursionlimit(size[0] * size[1])
 
     ui = UI(screen_size=size, canv_size=canv_size)
-    tool = ToolBelt()
     layer = 0
 
     # refresh ui to make everything appear for the first time
@@ -732,6 +835,8 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
     just_finished_drawing, just_loaded = False, False
 
     while running:
+        x, y = pygame.mouse.get_pos()
+
         for event in pygame.event.get():
 
             # quit game
@@ -756,10 +861,10 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
                 elif event.key == pygame.K_s:  # save file
                     ui.canvas.save()
                 elif event.key == pygame.K_l:  # load save file
-                    ui.canvas.load(ui.screen)
-                    # background redraw
-                    ui.refresh_ui()
-                    just_loaded = True
+                    if ui.canvas.load(ui.screen):
+                        # background redraw
+                        ui.refresh_ui()
+                        just_loaded = True
                 elif event.key == pygame.K_p:  # print screen
                     pygame_configure.screen_as_image(ui.screen, None)
                 elif event.key == pygame.K_d:  # manual force redraw canvas
@@ -768,68 +873,79 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
 
             # switch tool (using tool keybinds)
             elif event.type == pygame.KEYDOWN and event.key in KEYBINDS:
-                tool.type = KEYBINDS[event.key]
+                ui.tool.type = KEYBINDS[event.key]
 
             # randomly change the colour
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_RSHIFT:
-                tool.colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+                ui.tool.colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
             # start drawing (depending on the tool type, this may only hold true for one loop (i.e. for single click tools)
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not ui.canvas.drawing:
-                ui.canvas.drawing_mode(True, tool)
+            elif (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                  and not ui.canvas.drawing and not ui.not_on_canvas(x, y) and not ui.click_mode):
+                ui.canvas.drawing_mode(True, ui.tool)
 
             # finish drawing
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and ui.canvas.drawing:
-                ui.canvas.drawing_mode(False, tool)
+                ui.canvas.drawing_mode(False, ui.tool)
                 just_finished_drawing = True
 
-            # colour picker (not via toolbelt)
+            # colour picker
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 3:
-                x, y = pygame.mouse.get_pos()
                 pixel = ui.canvas.pos_gets_pixel(layer, x, y, ui.screen)
                 if pixel:
-                    prev_tool, tool.type = tool.type, 'COLOUR_PICKER'
-                    tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y), 0)
-                    tool.type = prev_tool
+                    prev_tool, ui.tool.type = ui.tool.type, 'COLOUR_PICKER'
+                    ui.tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y), 0)
+                    ui.tool.type = prev_tool
+                    ui.update_colour_ui(extra_functions.rgb_to_hsv(ui.tool.colour[0], ui.tool.colour[1], ui.tool.colour[2]))
+
+            # UI click element event
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not ui.click_mode and ui.not_on_canvas(x, y):
+                ui.clicking_mode_switch(True)
+
+            # UI release click event
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and (ui.click_mode or ui.not_on_canvas(x, y)):
+                ui.clicking_mode_switch(False)
+
+        if ui.click_mode:
+            ui.during_click_mode(x, y)
 
         # set correct colour and alpha
-        col = tool.colour if tool.using_main else tool.colour2
-        alpha = tool.opacity if tool.using_main else tool.opacity2
+        col = ui.tool.colour if ui.tool.using_main else ui.tool.colour2
+        alpha = ui.tool.opacity if ui.tool.using_main else ui.tool.opacity2
 
         # drawing logistics
         if ui.canvas.drawing:
-            x, y = pygame.mouse.get_pos()
             pixel = ui.canvas.pos_gets_pixel(layer, x, y, ui.screen)
             loop_save['pixel_history'].append(((x, y), pixel))
             fix_pixels = []
 
             # fixing line skidding (drawing lines between two points in free drawing when moving too fast)
-            if tool.type in {'PENCIL'} and len(loop_save['pixel_history']) > 1:
+            if ui.tool.type in {'PENCIL'} and len(loop_save['pixel_history']) > 1:
                 pix1, pix2 = loop_save['pixel_history'][-2], loop_save['pixel_history'][-1]
                 if pix1[1] is None or pix2[1] is None or pix1[1] not in pix2[1].adj:
                     fix_pixels = list(ui.canvas.get_line(pix1[0], pix2[0], ui.canvas.layers[layer][0][0].size, ui.screen,
-                                                         layer, col, alpha, tool.overwrite, False))
+                                                         layer, col, alpha, ui.tool.overwrite, False))
             # applying the tool action
-            if pixel or (tool.type in {'LINE', 'PAINT_LINE'} and len(tool.positions) > 0):
-                pix_to_colour, temporary = tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y),
-                                                        ui.canvas.layers[layer][0][0].size)
+            if pixel or (ui.tool.type in {'LINE', 'PAINT_LINE'} and len(ui.tool.positions) > 0):
+                pix_to_colour, temporary = ui.tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y),
+                                                           ui.canvas.layers[layer][0][0].size)
                 loop_save['pixels_tobe_coloured'] = pix_to_colour + fix_pixels
 
-                if tool.type in RECOLOUR_TOOLS and not temporary:  # if this tool is one that recolours pixels
+                if ui.tool.type in RECOLOUR_TOOLS and not temporary:  # if this tool is one that recolours pixels
                     for pix in loop_save['pixels_tobe_coloured']:
                         actual_drawn = ui.canvas.layers[-1][pix.coord[1]][pix.coord[0]]
                         pygame_configure.draw_hexagon(ui.screen, actual_drawn.rgb + (actual_drawn.alpha,),
                                                       actual_drawn.position, actual_drawn.size)
 
             # disable drawing mode for click tools (e.g. bucket)
-            if tool.type in CLICK_TOOLS:
-                ui.canvas.drawing_mode(False, tool)
-                ui.canvas.history.override(HistoryEntry(ui.canvas, tool.type))  # fixes an undo/redo related bug
+            if ui.tool.type in CLICK_TOOLS:
+                ui.canvas.drawing_mode(False, ui.tool)
+                ui.canvas.history.override(HistoryEntry(ui.canvas, ui.tool.type))  # fixes an undo/redo related bug
         else:
             num_pixels_coloured = 0  # haven't used this variable in any meaningful way yet
-            if tool.type in RECOLOUR_TOOLS and 'pixels_tobe_coloured' in loop_save:  # if this tool is one that recolours pixels
+            if ui.tool.type in RECOLOUR_TOOLS and 'pixels_tobe_coloured' in loop_save:  # if this tool type recolours pixels
                 for pix in loop_save['pixels_tobe_coloured']:
-                    pix.recolour(col, alpha, tool.overwrite)
+                    pix.recolour(col, alpha, ui.tool.overwrite)
                     actual_drawn = ui.canvas.layers[-1][pix.coord[1]][pix.coord[0]]
                     pygame_configure.draw_hexagon(ui.screen, actual_drawn.rgb + (actual_drawn.alpha,),
                                                   actual_drawn.position, actual_drawn.size)
@@ -840,7 +956,7 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
             if just_finished_drawing and num_pixels_coloured > 0:
                 # used to be in canv.drawing_mode, but it caused problems since some tools
                 # only recolour pixels to canvas after the event calls (in which drawing_mode is called)
-                ui.canvas.history.override(HistoryEntry(ui.canvas, tool.type, num_pixels_coloured))
+                ui.canvas.history.override(HistoryEntry(ui.canvas, ui.tool.type, num_pixels_coloured))
 
         if ui.canvas.needs_redraw:
             if just_loaded:

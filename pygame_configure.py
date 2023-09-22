@@ -37,22 +37,23 @@ def screen_as_image(screen: pygame.Surface, canv_place: tuple[int, int, int, int
     return 'temp_images/screenshot.png'
 
 
-def draw_hexagon(screen: pygame.Surface, colour: tuple[int, int, int] | tuple[int | float],
+def draw_hexagon(screen: pygame.Surface, colour: tuple[int | float] | tuple[int, int, int, float],
                  point: tuple[float, float], radius: float, real_time: bool = False) -> None:
     """draw a hexagon"""
-    vertices = []
-    for i in range(6):
-        angle = i * math.pi / 3 - (math.pi / 6)
-        x = point[0] + radius * math.cos(angle)
-        y = point[1] + radius * math.sin(angle)
-        vertices.append((x, y))
+    if len(colour) < 4 or colour[3] > 0.0:
+        vertices = []
+        for i in range(6):
+            angle = i * math.pi / 3 - (math.pi / 6)
+            x = point[0] + radius * math.cos(angle)
+            y = point[1] + radius * math.sin(angle)
+            vertices.append((x, y))
 
-    if len(colour) == 4:
-        colour = colour[:3] + (colour[3] * 255,)
+        if len(colour) == 4:
+            colour = colour[:3] + (colour[3] * 255,)
 
-    pygame.draw.polygon(screen, colour, vertices)
-    if real_time:
-        pygame.display.flip()
+        pygame.draw.polygon(screen, colour, vertices)
+        if real_time:
+            pygame.display.flip()
 
 
 def draw_hex_border(screen: pygame.Surface, line_thick: int, start_pos: tuple[float, float], start_pos2: tuple[float, float],
