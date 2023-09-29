@@ -56,15 +56,27 @@ def draw_hexagon(screen: pygame.Surface, colour: tuple[int | float] | tuple[int,
             pygame.display.flip()
 
 
+def draw_g_line(screen: pygame.Surface, colour: tuple[int, int, int], start: tuple[float, float], end: tuple[float, float],
+                line_thick: int) -> None:
+    """draw a nice line with rounded edges"""
+    pygame.draw.line(screen, colour, start, end, line_thick)
+    pygame.draw.circle(screen, colour, start, line_thick/2)
+    pygame.draw.circle(screen, colour, end, line_thick/2)
+
+
+def draw_lines_g(screen: pygame.Surface, colour: tuple[int, int, int], verts: list[tuple[int, int]],
+                 line_thick: int, closed: bool = True) -> None:
+    """draw a nice line with rounded edges"""
+    for i in range(0, len(verts) - (not closed)):
+        start, end = verts[i], verts[(i + 1) % len(verts)]
+        draw_g_line(screen, colour, start, end, line_thick)
+    if any(any(i > 300 for i in x) for x in verts):
+        print(verts)
+
+
 def draw_hex_border(screen: pygame.Surface, line_thick: int, start_pos: tuple[float, float], start_pos2: tuple[float, float],
                     rows: int, cols: int, radius: float, colour: tuple[int, int, int] = (100, 100, 100)) -> None:
     """starts at start pos as top left hex, then draws a hex border along the canvas given the radius, rows and cols"""
-    def draw_g_line(start: tuple[float, float], end: tuple[float, float]):
-        """draw a nice line with rounded edges"""
-        pygame.draw.line(screen, colour, start, end, line_thick)
-        pygame.draw.circle(screen, colour, start, line_thick/2)
-        pygame.draw.circle(screen, colour, end, line_thick/2)
-
     for side in range(0, 4):
         hex_width_half = radius * math.sqrt(3 / 4)
         side_len = cols if side % 2 == 0 else rows
@@ -74,34 +86,34 @@ def draw_hex_border(screen: pygame.Surface, line_thick: int, start_pos: tuple[fl
         for i in range(0, side_len):
             if side == 0:  # top
                 verts = regular_polygon_vertices(x + i * 2 * hex_width_half, y, radius, 6)
-                draw_g_line(verts[5], verts[0])
-                draw_g_line(verts[0], verts[1])
+                draw_g_line(screen, colour, verts[5], verts[0], line_thick)
+                draw_g_line(screen, colour, verts[0], verts[1], line_thick)
             elif side == 1:  # right
                 x_extra = (rows % 2 != 0) * hex_width_half  # if there's an even num of rows
                 y_shift = i * (3 / 2) * radius
                 if i % 2 == 0:
                     verts = regular_polygon_vertices(x2 - hex_width_half + x_extra, y + y_shift, radius, 6)
-                    draw_g_line(verts[1], verts[2])
+                    draw_g_line(screen, colour, verts[1], verts[2], line_thick)
                 else:
                     verts = regular_polygon_vertices(x2 + x_extra, y + y_shift, radius, 6)
-                    draw_g_line(verts[0], verts[1])
-                    draw_g_line(verts[1], verts[2])
-                    draw_g_line(verts[2], verts[3])
+                    draw_g_line(screen, colour, verts[0], verts[1], line_thick)
+                    draw_g_line(screen, colour, verts[1], verts[2], line_thick)
+                    draw_g_line(screen, colour, verts[2], verts[3], line_thick)
             elif side == 2:  # bottom
                 x_extra = (rows % 2 == 0) * hex_width_half  # if there's an even num of rows
                 verts = regular_polygon_vertices(x + i * 2 * hex_width_half + x_extra, y2, radius, 6)
-                draw_g_line(verts[4], verts[3])
-                draw_g_line(verts[3], verts[2])
+                draw_g_line(screen, colour, verts[4], verts[3], line_thick)
+                draw_g_line(screen, colour, verts[3], verts[2], line_thick)
             elif side == 3:  # left
                 y_shift = i * (3 / 2) * radius
                 if i % 2 == 0:
                     verts = regular_polygon_vertices(x, y + y_shift, radius, 6)
-                    draw_g_line(verts[5], verts[0])
-                    draw_g_line(verts[4], verts[5])
-                    draw_g_line(verts[3], verts[4])
+                    draw_g_line(screen, colour, verts[5], verts[0], line_thick)
+                    draw_g_line(screen, colour, verts[4], verts[5], line_thick)
+                    draw_g_line(screen, colour, verts[3], verts[4], line_thick)
                 else:
                     verts = regular_polygon_vertices(x + hex_width_half, y + y_shift, radius, 6)
-                    draw_g_line(verts[4], verts[5])
+                    draw_g_line(screen, colour, verts[4], verts[5], line_thick)
 
 
 def input_mouse_pygame() -> tuple[int, int]:
@@ -146,3 +158,42 @@ def float_to_colour(x: float) -> tuple[int, int, int]:
     """
     rgb = colorsys.hsv_to_rgb(x, 1.0, 1.0)
     return round(rgb[0] * 255), round(rgb[1] * 255), round(rgb[2] * 255)
+
+
+def fill_gradient(surface: pygame.Surface, start_col: tuple[int, int, int], end_col: tuple[int, int, int], pos: tuple[int, int],
+                  height: int, width: int, vertical: bool = True, forward: bool = True):
+    """fill a surface with a rectangle gradient pattern
+    vertical - should you draw the gradient vertically
+    forward - start_col is at left/top
+
+    Pygame recipe: https://www.pygame.org/wiki/GradientCode
+    """
+    if vertical:
+        use = height
+    else:
+        use = width
+    if forward:
+        a, b = start_col, end_col
+    else:
+        b, a = start_col, end_col
+    rate = (
+        float(b[0] - a[0]) / use,
+        float(b[1] - a[1]) / use,
+        float(b[2] - a[2]) / use
+    )
+    if vertical:
+        for line in range(pos[1], pos[1] + height):
+            color = (
+                math.floor(min(max(a[0] + (rate[0] * (line - pos[1])), 0), 255)),
+                math.floor(min(max(a[1] + (rate[1] * (line - pos[1])), 0), 255)),
+                math.floor(min(max(a[2] + (rate[2] * (line - pos[1])), 0), 255))
+            )
+            pygame.draw.line(surface, color, (pos[0], line), (pos[0] + width, line))
+    else:
+        for col in range(pos[0], pos[0] + width):
+            color = (
+                math.floor(min(max(a[0] + (rate[0] * (col - pos[0])), 0), 255)),
+                math.floor(min(max(a[1] + (rate[1] * (col - pos[0])), 0), 255)),
+                math.floor(min(max(a[2] + (rate[2] * (col - pos[0])), 0), 255))
+            )
+            pygame.draw.line(surface, color, (col, pos[1]), (col, pos[1] + height))

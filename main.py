@@ -1,9 +1,6 @@
 """main python file"""
 
 from __future__ import annotations
-# from typing import Any, Optional
-
-import pygame
 import random
 
 import extra_functions
@@ -11,28 +8,17 @@ from linked_list import LinkedList
 import pygame_configure
 from extra_functions import *
 from save_and_load import *
+from constants import *
 import UI_elements
 import sys
-import screeninfo
 
-# TODO: colour wheel and sliders in gui, as well as a tool select (first I must make the images for the gui externally)
-# ? TODO: properly align canvas & add gui area of screen (adjusts to resizing)
+# TODO: cut down save file size by ignoring size and position, and handling those after
+# TODO: colour indicator element in gui
+# TODO: a tool select gui, and more sliders for tool properties
+# TODO: gui resizing and malleability functions
 # TODO: split tools into individual objects in a separate file, as children of toolbelt
 # TODO: line temp draw (makes use of the save_image)
 # TODO: Multiprocressing for undo, fill, etc (tools that take a lot of time), and STOP button (to stop an auto draw midway)
-
-
-TOOLS = {'PENCIL', 'BUCKET', 'LINE', 'PAINT_LINE', 'LASSO', 'RECT_SELECT', 'MAGIC_WAND', 'PAINT_BRUSH', 'COLOUR_PICKER', 'ERASER',
-         'HEXAGON', 'SQUARE', 'TEXT', 'ZOOM', 'PAN', 'GRADIENT', 'REPLACE', 'BLUR', 'SCRAMBLE'}
-CLICK_TOOLS = {'BUCKET', 'MAGIC_WAND', 'COLOUR_PICKER'}
-RECOLOUR_TOOLS = {'PENCIL', 'BUCKET', 'LINE', 'PAINT_LINE', 'PAINT_BRUSH', 'ERASER', 'HEXAGON', 'SQUARE', 'TEXT', 'GRADIENT',
-                  'REPLACE', 'BLUR', 'SCRAMBLE'}
-KEYBINDS = {pygame.K_p: 'PENCIL', pygame.K_b: 'BUCKET', pygame.K_l: 'LINE', pygame.K_k: 'PAINT_LINE'}
-SCREEN_W, SCREEN_H = screeninfo.get_monitors()[0].width, screeninfo.get_monitors()[0].height
-SCREEN_SIZES = [(int(SCREEN_W * (x / 100)), int(SCREEN_H * (x / 100))) for x in range(0, 151)
-                if int(SCREEN_W * (x / 100)) == float(SCREEN_W * (x / 100)) and
-                int(SCREEN_H * (x / 100)) == float(SCREEN_H * (x / 100))]
-# RECURSION_STAT = 0
 
 
 class CanvasADT:
@@ -600,11 +586,11 @@ class ToolBelt:
         self.hardness = 0.75  # still unused
         self.positions = []
         self.overwrite = False
-        self.tolerance = 0.2
+        self.tolerance = 0.01
         self.alpha_tolerate = True
         self.globally = False
         self.spiral = False
-        self.alpha_dim = 0.02  # set to 0 for normal bucket behaviour
+        self.alpha_dim = 0.0  # set to 0 for normal bucket behaviour
         self.keep_mass = True  # if there should be a specific amount of paint based on alpha_diminish
 
         self.hue, self.saturation, self.velocity = 0, 0, 0
@@ -719,18 +705,23 @@ class UI:
         self.click_mode = False
         self.clicking = None
 
-        # element generation
+        # element generation (note how the key names are the same as the etype
         self.elements = {
-            'hue_slider': UI_elements.Slider(height=20, width=250, orientation='horizontal', affect=self.tool.hue,
-                                             sing_click=False, images=["images/huebar.png"], position=(20, 20),
-                                             val_range=(0, 360), etype='hue'),
-            'saturation_slider': UI_elements.Slider(height=20, width=250, orientation='horizontal', affect=self.tool.saturation,
-                                                    sing_click=False, images=["images/sliderbar.png"], position=(20, 50),
-                                                    val_range=(0, 100), etype='saturation'),
-            'velocity_slider': UI_elements.Slider(height=20, width=250, orientation='horizontal', affect=self.tool.velocity,
-                                                  sing_click=False, images=["images/sliderbar.png"], position=(20, 80),
-                                                  val_range=(0, 100), etype='velocity')
+            'hue': UI_elements.Slider(height=20, width=250, affect=self.tool.hue,
+                                      sing_click=False, images=["images/huebar.png"], position=(20, 20),
+                                      val_range=(0, 360), etype='hue', host=self),
+            'saturation': UI_elements.Slider(height=20, width=250, affect=self.tool.saturation,
+                                             sing_click=False, images=["images/sliderbar.png"], position=(20, 50),
+                                             val_range=(0, 100), etype='saturation', host=self),
+            'velocity': UI_elements.Slider(height=20, width=250, affect=self.tool.velocity,
+                                           sing_click=False, images=["images/sliderbar.png"], position=(20, 80),
+                                           val_range=(0, 100), etype='velocity', host=self)
         }
+        # assert here (once we made all the UI elements) to enforce a strict naming scheme on elements
+        # (due to conditional cases checking for specific names)
+        for element in self.elements:
+            e = self.elements[element]
+            assert e.host is self and e.etype in e.host.elements and e is e.host.elements[e.etype]
 
     def refresh_ui(self, only_elements: bool = False) -> None:
         """refreshes the UI"""
@@ -775,25 +766,23 @@ class UI:
         else:
             def recolour_action() -> None:
                 """helper function"""
-                t = self.tool
-                new_col = extra_functions.hsv_to_rgb(t.hue, t.saturation, t.velocity)
-                t.change_colour(new_col, t.opacity, True)
-                print(new_col)
-
+                new_col = extra_functions.hsv_to_rgb(self.tool.hue, self.tool.saturation, self.tool.velocity)
+                self.tool.change_colour(new_col, self.tool.opacity, True)
+            element = self.clicking
             # extra actions based on element type
-            if self.clicking.etype == 'hue':
-                self.tool.hue = self.clicking.on_click(self.screen, x, y)
+            if element.etype == 'hue':
+                self.tool.hue = element.on_click(self.screen, x, y)
                 recolour_action()
             elif self.clicking.etype == 'saturation':
-                self.tool.saturation = self.clicking.on_click(self.screen, x, y)
+                self.tool.saturation = element.on_click(self.screen, x, y)
                 recolour_action()
-            elif self.clicking.etype == 'velocity':
-                self.tool.velocity = self.clicking.on_click(self.screen, x, y)
+            elif element.etype == 'velocity':
+                self.tool.velocity = element.on_click(self.screen, x, y)
                 recolour_action()
             else:
-                self.clicking.affect = self.clicking.on_click(self.screen, x, y)
+                element.affect = element.on_click(self.screen, x, y)
 
-            if self.clicking.sing_click:  # if our element that we're dealing with is a single click element
+            if element.sing_click:  # if our element that we're dealing with is a single click element
                 self.clicking_mode_switch(False)
 
     def clicking_mode_switch(self, activation: bool = False):
@@ -807,15 +796,15 @@ class UI:
     def update_colour_ui(self, hsv: tuple[int, int, int]) -> None:
         """this was made for the colour picker to update the colour sliders"""
         self.tool.hue, self.tool.saturation, self.tool.velocity = hsv
-        for element in self.elements:
+        print(hsv)
+        for element in [x for x in self.elements if x in COLOUR_UI]:
             e = self.elements[element]
             if e.etype == 'hue':
-                e.draw(self.screen, hsv[0])
+                e.draw(self.screen, hsv[0], with_prior=True)
             elif e.etype == 'saturation':
-                e.draw(self.screen, hsv[1])
+                e.draw(self.screen, hsv[1], with_prior=True)
             elif e.etype == 'velocity':
-                e.draw(self.screen, hsv[2])
-                print('hello there')
+                e.draw(self.screen, hsv[2], with_prior=True)
         self.refresh_ui(only_elements=True)
 
 
@@ -849,6 +838,7 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
                 # background redraw
                 ui.refresh_ui()  # this used to be inside the load function before the ui class was made
                 just_loaded = True
+                print(ui.screen.get_width(), ui.screen.get_height())
 
             # special ctrl actions
             elif event.type == pygame.KEYDOWN and pygame.key.get_mods() & pygame.KMOD_CTRL and not ui.canvas.drawing:
@@ -878,6 +868,7 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
             # randomly change the colour
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_RSHIFT:
                 ui.tool.colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+                ui.update_colour_ui(extra_functions.rgb_to_hsv(ui.tool.colour[0], ui.tool.colour[1], ui.tool.colour[2]))
 
             # start drawing (depending on the tool type, this may only hold true for one loop (i.e. for single click tools)
             elif (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -985,6 +976,6 @@ def pix_dict_to_pixel(pd: dict) -> Pixel:
     return p
 
 
-def test() -> None:
+def test(n: int = 17) -> None:
     """test/run the program"""
-    open_program(SCREEN_SIZES[12], (40, 40))
+    open_program(SCREEN_SIZES[n], (48, 48))
