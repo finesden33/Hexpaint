@@ -12,7 +12,6 @@ from constants import *
 import UI_elements
 import sys
 
-# TODO: cut down save file size by ignoring size and position, and handling those after
 # TODO: colour indicator element in gui
 # TODO: a tool select gui, and more sliders for tool properties
 # TODO: gui resizing and malleability functions
@@ -228,9 +227,6 @@ class Pixel:
             'rgb': self.rgb,
             'alpha': self.alpha,
             'coord': self.coord,
-            'position': self.position,
-            'size': self.size,
-            'selected': self.selected
         }
         return mapping
 
@@ -471,7 +467,7 @@ class HexCanvas(CanvasADT):
 
     def save(self) -> None:
         """save the file as a project file (not an export image)"""
-        lst = []
+        save_file = [[], self.layers[0][0][0].size]
         for layer in self.layers:
             lyr = []
             for row in layer:
@@ -479,21 +475,22 @@ class HexCanvas(CanvasADT):
                 for pix in row:
                     rw.append(pix.to_dict())
                 lyr.append(rw)
-            lst.append(lyr)
-        create_file(lst)
+            save_file[0].append(lyr)
+        create_file(save_file)
 
     def load(self, screen: pygame.Surface, use_current: bool = False) -> bool:
         """loads a valid file to remake the canvas object"""
         if not use_current:
-            new_canvas_layers = load_file()
-            if new_canvas_layers:
+            file = load_file()  # load file is a tuple of layers + a size
+            if file:
                 lst = []
+                new_canvas_layers, size = file
                 for layer in new_canvas_layers:
                     lyr = []
                     for row in layer:
                         rw = []
-                        for pix in row:
-                            pixel = pix_dict_to_pixel(pix)
+                        for pix_dict in row:
+                            pixel = Pixel(pix_dict['coord'], pix_dict['rgb'], None, size=size, alpha=pix_dict['alpha'])
                             rw.append(pixel)
                         lyr.append(rw)
                     lst.append(lyr)
@@ -963,17 +960,6 @@ def open_program(size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] 
         pygame.display.flip()
 
     pygame.quit()
-
-
-def pix_dict_to_pixel(pd: dict) -> Pixel:
-    """converts a pixel dictionary to a Pixel object"""
-    p = Pixel(pd['coord'],
-              pd['rgb'],
-              pd['position'],
-              pd['size'],
-              pd['alpha'])
-    p.selected = pd['selected']
-    return p
 
 
 def test(n: int = 17) -> None:
