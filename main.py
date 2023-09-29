@@ -12,6 +12,7 @@ from constants import *
 import UI_elements
 import sys
 
+# TODO: understand what the heck I was thinking when naming those commit messages
 # TODO: cut down save file size by ignoring size and position, and handling those after
 # TODO: colour indicator element in gui
 # TODO: a tool select gui, and more sliders for tool properties
