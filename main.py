@@ -3,13 +3,11 @@
 from __future__ import annotations
 import random
 
-import extra_functions
-from linked_list import LinkedList
-import pygame_configure
-from extra_functions import *
-from save_and_load import *
-from constants import *
-import UI_elements
+from non_main_py_files import UI_elements, extra_functions, pygame_configure
+from non_main_py_files.linked_list import LinkedList
+from non_main_py_files.extra_functions import *
+from non_main_py_files.save_and_load import *
+from non_main_py_files.constants import *
 import sys
 
 # TODO: colour indicator element in gui
@@ -793,7 +791,6 @@ class UI:
     def update_colour_ui(self, hsv: tuple[int, int, int]) -> None:
         """this was made for the colour picker to update the colour sliders"""
         self.tool.hue, self.tool.saturation, self.tool.velocity = hsv
-        print(hsv)
         for element in [x for x in self.elements if x in COLOUR_UI]:
             e = self.elements[element]
             if e.etype == 'hue':

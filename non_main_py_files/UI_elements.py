@@ -2,10 +2,9 @@
 import math
 from typing import Any
 
-import extra_functions
-import pygame_configure
+from non_main_py_files import extra_functions, pygame_configure
 from main import UI
-from constants import *
+from non_main_py_files.constants import *
 
 
 class UIelement:
@@ -124,7 +123,7 @@ class Slider(UIelement):
                 (self.position[0] + progress + ind, self.position[1] + self.height - ind)
             ]
             print(points)
-            pygame_configure.draw_lines_g(screen, col, points, max(2, round(ind*2)), closed=True)
+            pygame_configure.draw_lines_g(screen, col, points, max(2, round(ind * 2)), closed=True)
         elif self.orientation in VERTICAL:
             progress = (self.hold_val / abs(self.val_range[1] - self.val_range[0])) * (self.height - self.width)
             points = [
@@ -133,7 +132,7 @@ class Slider(UIelement):
                 (self.position[0] + self.width - ind, self.position[1] + progress + self.height - ind),
                 (self.position[0] + self.width + ind, self.position[1] + progress - ind)
             ]
-            pygame_configure.draw_lines_g(screen, col, points, max(2, round(ind*2)), closed=True)
+            pygame_configure.draw_lines_g(screen, col, points, max(2, round(ind * 2)), closed=True)
 
     def on_click(self, screen: pygame.Surface, mouse_x: int, mouse_y: int) -> Any:
         """input value of attribute of a class you wish to reference, then output the value to use where called"""
