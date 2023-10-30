@@ -1,6 +1,6 @@
 """test file"""
 
-import main
+from src import main
 import pygame
 import math
 

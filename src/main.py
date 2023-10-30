@@ -1,9 +1,9 @@
 """main python file"""
-
 from __future__ import annotations
 import random
 
-from non_main_py_files import UI_elements, extra_functions, pygame_configure
+from non_main_py_files import pygame_configure
+from non_main_py_files import UI_elements
 from non_main_py_files.linked_list import LinkedList
 from non_main_py_files.extra_functions import *
 from non_main_py_files.save_and_load import *
@@ -690,7 +690,7 @@ class UI:
     clicking: UI_elements.UIelement | None
 
     def __init__(self, screen_size: tuple[int, int], canv_size: tuple[int, int]) -> None:
-        self.background = "images/checker_bg.png"
+        self.background = "resources/images/checker_bg.png"
         self.border_cols = ((50, 50, 50), (90, 90, 90))
         self.screen = pygame_configure.initialize_pygame_window(screen_size[0], screen_size[1])
         self.canvas = HexCanvas(canv_size)
@@ -703,13 +703,13 @@ class UI:
         # element generation (note how the key names are the same as the etype
         self.elements = {
             'hue': UI_elements.Slider(height=20, width=250, affect=self.tool.hue,
-                                      sing_click=False, images=["images/huebar.png"], position=(20, 20),
+                                      sing_click=False, images=["resources/images/huebar.png"], position=(20, 20),
                                       val_range=(0, 360), etype='hue', host=self),
             'saturation': UI_elements.Slider(height=20, width=250, affect=self.tool.saturation,
-                                             sing_click=False, images=["images/sliderbar.png"], position=(20, 50),
+                                             sing_click=False, images=["resources/images/sliderbar.png"], position=(20, 50),
                                              val_range=(0, 100), etype='saturation', host=self),
             'velocity': UI_elements.Slider(height=20, width=250, affect=self.tool.velocity,
-                                           sing_click=False, images=["images/sliderbar.png"], position=(20, 80),
+                                           sing_click=False, images=["resources/images/sliderbar.png"], position=(20, 80),
                                            val_range=(0, 100), etype='velocity', host=self)
         }
         # assert here (once we made all the UI elements) to enforce a strict naming scheme on elements
@@ -761,7 +761,7 @@ class UI:
         else:
             def recolour_action() -> None:
                 """helper function"""
-                new_col = extra_functions.hsv_to_rgb(self.tool.hue, self.tool.saturation, self.tool.velocity)
+                new_col = hsv_to_rgb(self.tool.hue, self.tool.saturation, self.tool.velocity)
                 self.tool.change_colour(new_col, self.tool.opacity, True)
             element = self.clicking
             # extra actions based on element type
@@ -790,7 +790,7 @@ class UI:
 
     def update_colour_ui(self, colour: tuple[int, int, int]) -> None:
         """this was made for the colour picker to update the colour sliders"""
-        hsv = extra_functions.rgb_to_hsv(colour[0], colour[1], colour[2])
+        hsv = rgb_to_hsv(colour[0], colour[1], colour[2])
         print(colour)
         print(hsv)
         for element in [x for x in self.elements if x in COLOUR_UI]:
@@ -840,7 +840,7 @@ class Program:
             # handle events
             for event in pygame.event.get():
                 self.just_finished_drawing, self.just_loaded, self.running = (
-                    handle_event(event, self.ui, x, y, self.just_finished_drawing, self.just_loaded, self.layer, self.running)
+                    self.handle_event(event, self.ui, x, y, self.just_finished_drawing, self.just_loaded, self.layer, self.running)
                 )
             if self.ui.click_mode:
                 self.ui.during_click_mode(x, y)
@@ -918,78 +918,77 @@ class Program:
             # only recolour pixels to canvas after the event calls (in which drawing_mode is called)
             self.ui.canvas.history.override(HistoryEntry(self.ui.canvas, self.ui.tool.type, num_pixels_coloured))
 
+    def handle_event(self, event: pygame.event, ui: UI, x: int, y: int, just_finished_drawing, just_loaded, layer: int, running):
+        """handles events and acts accordingly"""
+        # quit game
+        if event.type == pygame.QUIT:
+            running = False
 
-def handle_event(event: pygame.event, ui: UI, x: int, y: int, just_finished_drawing, just_loaded, layer: int, running):
-    """handles events and acts accordingly"""
-    # quit game
-    if event.type == pygame.QUIT:
-        running = False
+        # resize window
+        elif event.type == pygame.VIDEORESIZE:
+            ui.canvas.load(ui.screen, use_current=True)
+            # background redraw
+            ui.refresh_ui()  # this used to be inside the load function before the ui class was made
+            just_loaded = True
+            print(ui.screen.get_width(), ui.screen.get_height())
 
-    # resize window
-    elif event.type == pygame.VIDEORESIZE:
-        ui.canvas.load(ui.screen, use_current=True)
-        # background redraw
-        ui.refresh_ui()  # this used to be inside the load function before the ui class was made
-        just_loaded = True
-        print(ui.screen.get_width(), ui.screen.get_height())
+        # special ctrl actions
+        elif event.type == pygame.KEYDOWN and pygame.key.get_mods() & pygame.KMOD_CTRL and not ui.canvas.drawing:
+            if event.key == pygame.K_z:  # undo action
+                ui.canvas.undo(ui.screen)
+            elif event.key == pygame.K_y:  # redo action
+                ui.canvas.redo(ui.screen)
+            elif event.key == pygame.K_h:  # print the history of actions in the console
+                print(ui.canvas.history)
+            elif event.key == pygame.K_s:  # save file
+                ui.canvas.save()
+            elif event.key == pygame.K_l:  # load save file
+                if ui.canvas.load(ui.screen):
+                    # background redraw
+                    ui.refresh_ui()
+                    just_loaded = True
+            elif event.key == pygame.K_p:  # print screen
+                pygame_configure.screen_as_image(ui.screen, None)
+            elif event.key == pygame.K_d:  # manual force redraw canvas
+                ui.canvas.needs_redraw = True
+                ui.canvas.redraw_canv(ui.screen, force_config=True)
 
-    # special ctrl actions
-    elif event.type == pygame.KEYDOWN and pygame.key.get_mods() & pygame.KMOD_CTRL and not ui.canvas.drawing:
-        if event.key == pygame.K_z:  # undo action
-            ui.canvas.undo(ui.screen)
-        elif event.key == pygame.K_y:  # redo action
-            ui.canvas.redo(ui.screen)
-        elif event.key == pygame.K_h:  # print the history of actions in the console
-            print(ui.canvas.history)
-        elif event.key == pygame.K_s:  # save file
-            ui.canvas.save()
-        elif event.key == pygame.K_l:  # load save file
-            if ui.canvas.load(ui.screen):
-                # background redraw
-                ui.refresh_ui()
-                just_loaded = True
-        elif event.key == pygame.K_p:  # print screen
-            pygame_configure.screen_as_image(ui.screen, None)
-        elif event.key == pygame.K_d:  # manual force redraw canvas
-            ui.canvas.needs_redraw = True
-            ui.canvas.redraw_canv(ui.screen, force_config=True)
+        # switch tool (using tool keybinds)
+        elif event.type == pygame.KEYDOWN and event.key in KEYBINDS:
+            ui.tool.type = KEYBINDS[event.key]
 
-    # switch tool (using tool keybinds)
-    elif event.type == pygame.KEYDOWN and event.key in KEYBINDS:
-        ui.tool.type = KEYBINDS[event.key]
-
-    # randomly change the colour
-    elif event.type == pygame.KEYDOWN and event.key == pygame.K_RSHIFT:
-        ui.tool.colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-        ui.update_colour_ui(ui.tool.colour)
-
-    # start drawing (depending on the tool type, this may only hold true for one loop (i.e. for single click tools)
-    elif (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
-          and not ui.canvas.drawing and not ui.not_on_canvas(x, y) and not ui.click_mode):
-        ui.canvas.drawing_mode(True, ui.tool)
-
-    # finish drawing
-    elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and ui.canvas.drawing:
-        ui.canvas.drawing_mode(False, ui.tool)
-        just_finished_drawing = True
-
-    # colour picker
-    elif event.type == pygame.MOUSEBUTTONUP and event.button == 3:
-        pixel = ui.canvas.pos_gets_pixel(layer, x, y, ui.screen)
-        if pixel:
-            prev_tool, ui.tool.type = ui.tool.type, 'COLOUR_PICKER'
-            ui.tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y), 0)
-            ui.tool.type = prev_tool
+        # randomly change the colour
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_RSHIFT:
+            ui.tool.colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
             ui.update_colour_ui(ui.tool.colour)
 
-    # UI click element event
-    elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not ui.click_mode and ui.not_on_canvas(x, y):
-        ui.clicking_mode_switch(True)
+        # start drawing (depending on the tool type, this may only hold true for one loop (i.e. for single click tools)
+        elif (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+              and not ui.canvas.drawing and not ui.not_on_canvas(x, y) and not ui.click_mode):
+            ui.canvas.drawing_mode(True, ui.tool)
 
-    # UI release click event
-    elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and (ui.click_mode or ui.not_on_canvas(x, y)):
-        ui.clicking_mode_switch(False)
-    return just_finished_drawing, just_loaded, running
+        # finish drawing
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and ui.canvas.drawing:
+            ui.canvas.drawing_mode(False, ui.tool)
+            just_finished_drawing = True
+
+        # colour picker
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 3:
+            pixel = ui.canvas.pos_gets_pixel(layer, x, y, ui.screen)
+            if pixel:
+                prev_tool, ui.tool.type = ui.tool.type, 'COLOUR_PICKER'
+                ui.tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y), 0)
+                ui.tool.type = prev_tool
+                ui.update_colour_ui(ui.tool.colour)
+
+        # UI click element event
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not ui.click_mode and ui.not_on_canvas(x, y):
+            ui.clicking_mode_switch(True)
+
+        # UI release click event
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and (ui.click_mode or ui.not_on_canvas(x, y)):
+            ui.clicking_mode_switch(False)
+        return just_finished_drawing, just_loaded, running
 
 
 def test(n: int = 17) -> None:

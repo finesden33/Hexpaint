@@ -2,8 +2,9 @@
 import math
 from typing import Any
 
-from non_main_py_files import extra_functions, pygame_configure
-from main import UI
+from non_main_py_files.extra_functions import hsv_to_rgb
+from non_main_py_files.pygame_configure import fill_gradient, draw_lines_g
+from src.main import UI
 from non_main_py_files.constants import *
 
 
@@ -94,22 +95,22 @@ class Slider(UIelement):
         """draw the background that changes based on current hold_val as well as other vals too"""
         ind = 4
         if self.etype in COLOUR_UI:
-            sat_start, sat_end = (extra_functions.hsv_to_rgb(self.host.tool.hue, 0, self.host.tool.velocity),
-                                  extra_functions.hsv_to_rgb(self.host.tool.hue, 100, self.host.tool.velocity))
-            vel_start, vel_end = ((0, 0, 0), extra_functions.hsv_to_rgb(self.host.tool.hue, self.host.tool.saturation, 100))
+            sat_start, sat_end = (hsv_to_rgb(self.host.tool.hue, 0, self.host.tool.velocity),
+                                  hsv_to_rgb(self.host.tool.hue, 100, self.host.tool.velocity))
+            vel_start, vel_end = ((0, 0, 0), hsv_to_rgb(self.host.tool.hue, self.host.tool.saturation, 100))
             # accessing the other ui element objects we wish to alter
             if not from_update:  # then we should update the other sliders that are related
                 sat_bar = self.host.elements['saturation']
                 vel_bar = self.host.elements['velocity']
-                pygame_configure.fill_gradient(screen, start_col=sat_start, end_col=sat_end,
-                                               pos=(math.floor(sat_bar.position[0] + ind), math.floor(sat_bar.position[1] + ind)),
-                                               width=math.floor(sat_bar.width - ind * 2), height=math.floor(sat_bar.height - ind * 2),
-                                               vertical=(sat_bar.orientation in VERTICAL), forward=True)
+                fill_gradient(screen, start_col=sat_start, end_col=sat_end,
+                              pos=(math.floor(sat_bar.position[0] + ind), math.floor(sat_bar.position[1] + ind)),
+                              width=math.floor(sat_bar.width - ind * 2), height=math.floor(sat_bar.height - ind * 2),
+                              vertical=(sat_bar.orientation in VERTICAL), forward=True)
                 sat_bar.draw(screen, with_prior=False, from_update=True)  # no priors to avoid infinite loop of accessing eachother
-                pygame_configure.fill_gradient(screen, start_col=vel_start, end_col=vel_end,
-                                               pos=(math.floor(vel_bar.position[0] + ind), math.floor(vel_bar.position[1] + ind)),
-                                               width=math.floor(vel_bar.width - ind * 2), height=math.floor(vel_bar.height - ind * 2),
-                                               vertical=(vel_bar.orientation in VERTICAL), forward=True)
+                fill_gradient(screen, start_col=vel_start, end_col=vel_end,
+                              pos=(math.floor(vel_bar.position[0] + ind), math.floor(vel_bar.position[1] + ind)),
+                              width=math.floor(vel_bar.width - ind * 2), height=math.floor(vel_bar.height - ind * 2),
+                              vertical=(vel_bar.orientation in VERTICAL), forward=True)
                 vel_bar.draw(screen, with_prior=False, from_update=True)  # notice how this will call the main draw, then extra draw now
 
     def draw_extra(self, screen: pygame.Surface) -> None:
@@ -126,7 +127,7 @@ class Slider(UIelement):
                 (self.position[0] + progress + self.height - ind, self.position[1] + self.height - ind),
                 (self.position[0] + progress + ind, self.position[1] + self.height - ind)
             ]
-            pygame_configure.draw_lines_g(screen, col, points, max(2, round(ind * 2)), closed=True)
+            draw_lines_g(screen, col, points, max(2, round(ind * 2)), closed=True)
         elif self.orientation in VERTICAL:
             progress = (self.hold_val / abs(self.val_range[1] - self.val_range[0])) * (self.height - self.width)
             points = [
@@ -135,7 +136,7 @@ class Slider(UIelement):
                 (self.position[0] + self.width - ind, self.position[1] + progress + self.height - ind),
                 (self.position[0] + self.width + ind, self.position[1] + progress - ind)
             ]
-            pygame_configure.draw_lines_g(screen, col, points, max(2, round(ind * 2)), closed=True)
+            draw_lines_g(screen, col, points, max(2, round(ind * 2)), closed=True)
 
     def on_click(self, screen: pygame.Surface, mouse_x: int, mouse_y: int) -> Any:
         """input value of attribute of a class you wish to reference, then output the value to use where called"""

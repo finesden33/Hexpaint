@@ -33,8 +33,8 @@ def screen_as_image(screen: pygame.Surface, canv_place: tuple[int, int, int, int
     if canv_place is None:
         canv_place = (0, 0, screen.get_width(), screen.get_height())
     subsurface = screen.subsurface(pygame.Rect(canv_place[0], canv_place[1], canv_place[2], canv_place[3]))
-    pygame.image.save(subsurface, '../temp_images/screenshot.png')
-    return 'temp_images/screenshot.png'
+    pygame.image.save(subsurface, 'resources/temp_images/screenshot.png')
+    return 'resources/temp_images/screenshot.png'
 
 
 def draw_hexagon(screen: pygame.Surface, colour: tuple[int | float] | tuple[int, int, int, float],
