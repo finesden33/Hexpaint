@@ -21,7 +21,7 @@ class UIelement:
     host: UI
 
     def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int],
-                 sing_click: bool, affect: Any, host: UI, etype: str) -> None:
+                 sing_click: bool, affect: Any, host: UI, etype: str, hold_val: Any) -> None:
         self.height, self.width = height, width
         self.orientation = 'vertical' if self.height > self.width else 'horizontal'
         self.images = images
@@ -30,32 +30,33 @@ class UIelement:
         self.affect = affect
         self.etype = etype
         self.host = host
+        self.hold_val = hold_val
 
     def rescale(self, height: int, width: int, screen: pygame.Surface) -> None:
         """resize the element (usually happens when esizing the program window"""
         self.height, self.width = height, width
         self.draw(screen)
 
-    def draw(self, screen: pygame.Surface, update_value: Any = None, with_prior: bool = True) -> bool:
+    def draw(self, screen: pygame.Surface, with_prior: bool = True, from_update: bool = False) -> bool:
         """draws the element in the pygame window"""
         if not self.images:
             return False
         if with_prior:
-            self.draw_prior(screen, update_value)
+            self.draw_prior(screen, from_update)
 
         image = pygame.image.load(self.images[0])
         image = pygame.transform.scale(image, (self.width, self.height))
         screen.blit(image, self.position)
 
-        self.draw_extra(screen, update_value=update_value)
+        self.draw_extra(screen)
         return True
 
-    def draw_extra(self, screen: pygame.Surface, update_value: Any) -> None:
-        """draw extra components after main images"""
+    def draw_prior(self, screen: pygame.Surface, from_update: bool = False) -> None:
+        """draw extra components before main images"""
         raise NotImplementedError
 
-    def draw_prior(self, screen: pygame.Surface, update_value: Any) -> None:
-        """draw extra components before main images"""
+    def draw_extra(self, screen: pygame.Surface) -> None:
+        """draw extra components after main images"""
         raise NotImplementedError
 
     def mouse_pos(self, mouse_x: float, mouse_y: float) -> tuple[float, float] | None:
@@ -71,6 +72,12 @@ class UIelement:
         """when the mouse is clicking"""
         raise NotImplementedError
 
+    def on_update(self, screen: pygame.Surface, update_value: Any) -> Any:
+        """when something else invokes a change (i.e. excluding clicking the element)"""
+        self.hold_val = update_value
+        self.draw(screen, from_update=True)
+        return update_value
+
 
 class Slider(UIelement):
     """a slider with value range to slide"""
@@ -79,12 +86,11 @@ class Slider(UIelement):
 
     def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int],
                  sing_click: bool, affect: Any, etype: str, host: UI, val_range: tuple[int, int]) -> None:
-        super().__init__(height, width, images, position, sing_click, affect, host, etype)
+        super().__init__(height, width, images, position, sing_click, affect, host, etype, hold_val=val_range[0])
 
         self.val_range = val_range
-        self.hold_val = val_range[0]
 
-    def draw_prior(self, screen: pygame.Surface, update_value: Any) -> None:
+    def draw_prior(self, screen: pygame.Surface, from_update: bool = False) -> None:
         """draw the background that changes based on current hold_val as well as other vals too"""
         ind = 4
         if self.etype in COLOUR_UI:
@@ -92,28 +98,26 @@ class Slider(UIelement):
                                   extra_functions.hsv_to_rgb(self.host.tool.hue, 100, self.host.tool.velocity))
             vel_start, vel_end = ((0, 0, 0), extra_functions.hsv_to_rgb(self.host.tool.hue, self.host.tool.saturation, 100))
             # accessing the other ui element objects we wish to alter
-            sat_bar = self.host.elements['saturation']
-            vel_bar = self.host.elements['velocity']
-            pygame_configure.fill_gradient(screen, start_col=sat_start, end_col=sat_end,
-                                           pos=(math.floor(sat_bar.position[0] + ind), math.floor(sat_bar.position[1] + ind)),
-                                           width=math.floor(sat_bar.width - ind * 2), height=math.floor(sat_bar.height - ind * 2),
-                                           vertical=(self.orientation in VERTICAL), forward=True)
-            sat_bar.draw(screen, update_value, with_prior=False)  # no priors to avoid infinite loop of accessing eachother
-            pygame_configure.fill_gradient(screen, start_col=vel_start, end_col=vel_end,
-                                           pos=(math.floor(vel_bar.position[0] + ind), math.floor(vel_bar.position[1] + ind)),
-                                           width=math.floor(vel_bar.width - ind * 2), height=math.floor(vel_bar.height - ind * 2),
-                                           vertical=(self.orientation in VERTICAL), forward=True)
-            vel_bar.draw(screen, update_value, with_prior=False)  # notice how this will call the main draw, then extra draw now
+            if not from_update:  # then we should update the other sliders that are related
+                sat_bar = self.host.elements['saturation']
+                vel_bar = self.host.elements['velocity']
+                pygame_configure.fill_gradient(screen, start_col=sat_start, end_col=sat_end,
+                                               pos=(math.floor(sat_bar.position[0] + ind), math.floor(sat_bar.position[1] + ind)),
+                                               width=math.floor(sat_bar.width - ind * 2), height=math.floor(sat_bar.height - ind * 2),
+                                               vertical=(sat_bar.orientation in VERTICAL), forward=True)
+                sat_bar.draw(screen, with_prior=False, from_update=True)  # no priors to avoid infinite loop of accessing eachother
+                pygame_configure.fill_gradient(screen, start_col=vel_start, end_col=vel_end,
+                                               pos=(math.floor(vel_bar.position[0] + ind), math.floor(vel_bar.position[1] + ind)),
+                                               width=math.floor(vel_bar.width - ind * 2), height=math.floor(vel_bar.height - ind * 2),
+                                               vertical=(vel_bar.orientation in VERTICAL), forward=True)
+                vel_bar.draw(screen, with_prior=False, from_update=True)  # notice how this will call the main draw, then extra draw now
 
-    def draw_extra(self, screen: pygame.Surface, update_value: Any = None) -> None:
+    def draw_extra(self, screen: pygame.Surface) -> None:
         """draws the slider block thing
         """
         ind = ((self.orientation in 'vertical') * self.width + (self.orientation not in 'vertical') * self.height) / 6
         col = (255, 255, 255)
 
-        if update_value:
-            self.hold_val = update_value
-            print(self.hold_val)
         if self.orientation in HORIZONTAL:
             progress = (self.hold_val / abs(self.val_range[1] - self.val_range[0])) * (self.width - self.height)
             points = [
@@ -122,7 +126,6 @@ class Slider(UIelement):
                 (self.position[0] + progress + self.height - ind, self.position[1] + self.height - ind),
                 (self.position[0] + progress + ind, self.position[1] + self.height - ind)
             ]
-            print(points)
             pygame_configure.draw_lines_g(screen, col, points, max(2, round(ind * 2)), closed=True)
         elif self.orientation in VERTICAL:
             progress = (self.hold_val / abs(self.val_range[1] - self.val_range[0])) * (self.height - self.width)

@@ -70,8 +70,8 @@ def draw_lines_g(screen: pygame.Surface, colour: tuple[int, int, int], verts: li
     for i in range(0, len(verts) - (not closed)):
         start, end = verts[i], verts[(i + 1) % len(verts)]
         draw_g_line(screen, colour, start, end, line_thick)
-    if any(any(i > 300 for i in x) for x in verts):
-        print(verts)
+    # if any(any(i > 300 for i in x) for x in verts):
+    #     print(verts)
 
 
 def draw_hex_border(screen: pygame.Surface, line_thick: int, start_pos: tuple[float, float], start_pos2: tuple[float, float],
