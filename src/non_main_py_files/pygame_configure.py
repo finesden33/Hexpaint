@@ -197,3 +197,20 @@ def fill_gradient(surface: pygame.Surface, start_col: tuple[int, int, int], end_
                 math.floor(min(max(a[2] + (rate[2] * (col - pos[0])), 0), 255))
             )
             pygame.draw.line(surface, color, (col, pos[1]), (col, pos[1] + height))
+
+
+def draw_square(screen: pygame.Surface, side: int, pos: tuple[int, int], col: tuple[int, int, int]) -> None:
+    """draw a square"""
+    left, top = pos
+    square = pygame.Rect(left, top, side, side)
+    pygame.draw.rect(screen, col, square)
+
+
+def draw_text(screen: pygame.Surface, pos: tuple[int, int], text: str,
+              font_size: int = 12, font_family: str = 'Squarewave-Bold.ttf',
+              col: tuple[tuple[int, int, int], tuple[int, int, int]] = ((0, 0, 0), (255, 255, 255))) -> None:
+    """draws text on screen"""
+    pygame.font.init()
+    font = pygame.font.Font('resources/fonts/' + font_family, font_size)
+    text = font.render(text, True, col[0], col[1])
+    screen.blit(text, (pos[0], pos[1]))

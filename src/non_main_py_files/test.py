@@ -10,7 +10,7 @@ canv = main.HexCanvas((50, 50))
 def test_click():
     """testing the 'mouse click after key ignore' bug"""
     pygame.init()
-    screen = pygame.display.set_mode((400, 400))
+    # screen = pygame.display.set_mode((400, 400))
     running = True
     while running:
         for event in pygame.event.get():

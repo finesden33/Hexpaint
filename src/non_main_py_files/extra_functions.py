@@ -69,3 +69,9 @@ def rgb_to_hsv(r: int, g: int, b: int) -> tuple[int, int, int] | tuple[None, int
         h = (h/6.0) % 1.0
 
         return math.floor(h * 360), math.floor(s * 100), math.floor(v * 100)
+
+
+def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+    """converts a rgb tuple to a hex value"""
+    r, g, b = rgb
+    return "#{:02x}{:02x}{:02x}".format(r, g, b)

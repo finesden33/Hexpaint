@@ -2,8 +2,8 @@
 from __future__ import annotations
 import random
 
-from non_main_py_files import pygame_configure
-from non_main_py_files import UI_elements
+import non_main_py_files.pygame_configure as pygame_configure
+import non_main_py_files.UI_elements as UI_elements
 from non_main_py_files.linked_list import LinkedList
 from non_main_py_files.extra_functions import *
 from non_main_py_files.save_and_load import *
@@ -599,6 +599,11 @@ class ToolBelt:
             self.colour2 = rgb
             self.opacity2 = alpha
 
+    def update_col_to_hsv(self) -> None:
+        """update the colour rgb value to be equivalent to its hsv attributes"""
+        new_col = hsv_to_rgb(self.hue, self.saturation, self.velocity)
+        self.change_colour(new_col, self.opacity, True)
+
     def onclick(self, pixel: Pixel, canv: HexCanvas, screen: pygame.Surface,
                 layer: int, pos: tuple[int, int], pix_size: float) -> tuple[list[Pixel], bool]:
         """when the cursor clicked
@@ -701,16 +706,28 @@ class UI:
         self.clicking = None
 
         # element generation (note how the key names are the same as the etype
+        slider_size = (20, 250)
+        left_start = 20
+        top_start = 20
+        col_choice_side = round(2.5 * (slider_size[0] + 10))
         self.elements = {
-            'hue': UI_elements.Slider(height=20, width=250, affect=self.tool.hue,
-                                      sing_click=False, images=["resources/images/huebar.png"], position=(20, 20),
+            'hue': UI_elements.Slider(height=slider_size[0], width=slider_size[1], affect=self.tool.hue,
+                                      sing_click=False, images=["resources/images/huebar.png"],
+                                      position=(left_start, top_start),
                                       val_range=(0, 360), etype='hue', host=self),
-            'saturation': UI_elements.Slider(height=20, width=250, affect=self.tool.saturation,
-                                             sing_click=False, images=["resources/images/sliderbar.png"], position=(20, 50),
+            'saturation': UI_elements.Slider(height=slider_size[0], width=slider_size[1], affect=self.tool.saturation,
+                                             sing_click=False, images=["resources/images/sliderbar.png"],
+                                             position=(left_start, top_start + slider_size[0] + 10),
                                              val_range=(0, 100), etype='saturation', host=self),
-            'velocity': UI_elements.Slider(height=20, width=250, affect=self.tool.velocity,
-                                           sing_click=False, images=["resources/images/sliderbar.png"], position=(20, 80),
-                                           val_range=(0, 100), etype='velocity', host=self)
+            'velocity': UI_elements.Slider(height=slider_size[0], width=slider_size[1], affect=self.tool.velocity,
+                                           sing_click=False, images=["resources/images/sliderbar.png"],
+                                           position=(left_start, top_start + 2 * (slider_size[0] + 10)),
+                                           val_range=(0, 100), etype='velocity', host=self),
+            'col_choice': UI_elements.Shape(height=col_choice_side, width=col_choice_side, affect=None,
+                                            sing_click=True, images=[],
+                                            position=(left_start + slider_size[1] + col_choice_side // 5,
+                                                      top_start + col_choice_side // 20),
+                                            etype='col_choice', host=self, hold_val={'colour': (0, 0, 0), 'show_info': False})
         }
         # assert here (once we made all the UI elements) to enforce a strict naming scheme on elements
         # (due to conditional cases checking for specific names)
@@ -759,23 +776,25 @@ class UI:
             if not self.clicking:  # if we failed to find an element where you clicked
                 self.clicking_mode_switch(False)
         else:
-            def recolour_action() -> None:
-                """helper function"""
-                new_col = hsv_to_rgb(self.tool.hue, self.tool.saturation, self.tool.velocity)
-                self.tool.change_colour(new_col, self.tool.opacity, True)
             element = self.clicking
             # extra actions based on element type
-            if element.etype == 'hue':
-                self.tool.hue = element.on_click(self.screen, x, y)
-                recolour_action()
-            elif self.clicking.etype == 'saturation':
-                self.tool.saturation = element.on_click(self.screen, x, y)
-                recolour_action()
-            elif element.etype == 'velocity':
-                self.tool.velocity = element.on_click(self.screen, x, y)
-                recolour_action()
-            else:
+            if element.etype in COLOUR_UI:
+                if element.etype == 'hue':
+                    self.tool.hue = element.on_click(self.screen, x, y)
+                elif self.clicking.etype == 'saturation':
+                    self.tool.saturation = element.on_click(self.screen, x, y)
+                elif element.etype == 'velocity':
+                    self.tool.velocity = element.on_click(self.screen, x, y)
+                self.tool.update_col_to_hsv()  # note that this updates self.tool.colour
+                if 'col_choice' in self.elements:
+                    self.elements['col_choice'].on_update(self.screen, {
+                        'colour': self.tool.colour,
+                        'show_info': self.elements['col_choice'].hold_val['show_info']
+                    })
+            elif element.affect:
                 element.affect = element.on_click(self.screen, x, y)
+            else:
+                element.on_click(self.screen, x, y)
 
             if element.sing_click:  # if our element that we're dealing with is a single click element
                 self.clicking_mode_switch(False)
@@ -791,8 +810,6 @@ class UI:
     def update_colour_ui(self, colour: tuple[int, int, int]) -> None:
         """this was made for the colour picker to update the colour sliders"""
         hsv = rgb_to_hsv(colour[0], colour[1], colour[2])
-        print(colour)
-        print(hsv)
         for element in [x for x in self.elements if x in COLOUR_UI]:
             e = self.elements[element]
             if e.etype == 'hue':
@@ -801,6 +818,11 @@ class UI:
                 self.tool.saturation = e.on_update(self.screen, hsv[1])
             elif e.etype == 'velocity':
                 self.tool.velocity = e.on_update(self.screen, hsv[2])
+        if 'col_choice' in self.elements:
+            self.elements['col_choice'].on_update(self.screen, {
+                'colour': colour,
+                'show_info': self.elements['col_choice'].hold_val['show_info']
+            })
         self.refresh_ui(only_elements=True)
 
 
