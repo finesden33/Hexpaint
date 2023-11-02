@@ -1,5 +1,6 @@
 """extra functions to use (instead of importing modules made by others)"""
 import math
+from typing import Any
 
 
 def cycle_list(lst: list, k: int) -> None:
@@ -75,3 +76,23 @@ def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     """converts a rgb tuple to a hex value"""
     r, g, b = rgb
     return "#{:02x}{:02x}{:02x}".format(r, g, b)
+
+
+def colour_add(original_rgb: tuple[int, int, int], new_rgb: tuple[int, int, int], original_alpha: float, new_alpha: float) -> tuple[tuple[int, int, int], float]:
+    """adds two colours together, with alpha"""
+    a1, a2 = original_alpha, new_alpha
+    rgb1, rgb2 = original_rgb, new_rgb
+
+    final_alpha = max(1 - (1 - a1) * (1 - a2), 0.001)
+
+    final_rgb = (min(255, round((rgb1[0] * a1 * (1 - a2) + rgb2[0] * a2) / final_alpha)),
+                 min(255, round((rgb1[1] * a1 * (1 - a2) + rgb2[1] * a2) / final_alpha)),
+                 min(255, round((rgb1[2] * a1 * (1 - a2) + rgb2[2] * a2) / final_alpha)))
+    return (final_rgb, final_alpha)
+
+
+def long_setattr(address: str, set_val: Any) -> Any:
+    """e.g. object.tool.property.value should return the object object.tool.property as the Any and its .value as its str
+    address MUST refer to an actual object attribute address"""
+    lst = address.split('.')
+    setattr(eval('.'.join([str(x) for x in lst[:-1]])), lst[-1], set_val)

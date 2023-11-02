@@ -16,3 +16,5 @@ SCREEN_SIZES = [(int(SCREEN_W * (x / 100)), int(SCREEN_H * (x / 100))) for x in 
 HORIZONTAL = {'horiz', 'Horiz', 'Horizontal', 'HORIZONTAL', 'horizontal', 'h', 'H'}
 VERTICAL = {'vert', 'vertic', 'vertical', 'Vertical', 'VERTICAL', 'v', 'V'}
 COLOUR_UI = {'hue', 'saturation', 'velocity'}
+DECIMAL_SLIDERS = {'alpha', 'tolerance'}
+TOOL_CONTROLS = {'hue', 'saturation', 'velocity', 'alpha', 'tolerance', 'alpha_dim', 'tool_select', 'alpha_tolerate'}

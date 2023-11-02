@@ -10,10 +10,14 @@ from non_main_py_files.save_and_load import *
 from non_main_py_files.constants import *
 import sys
 
-# TODO: colour indicator element in gui
-# TODO: a tool select gui, and more sliders for tool properties
-# TODO: gui resizing and malleability functions
+# TODO: alpha slider
+# TODO: change program so that pixel colour displays as sum of all layers + background default (white by default)
+# TODO: implement hardness and alpha affect
+# TODO: layer select
+# TODO: tool select buttons
 # TODO: split tools into individual objects in a separate file, as children of toolbelt
+# TODO: sliders for tool properties
+# TODO: gui resizing and malleability functions
 # TODO: line temp draw (makes use of the save_image)
 # TODO: Multiprocressing for undo, fill, etc (tools that take a lot of time), and STOP button (to stop an auto draw midway)
 
@@ -74,7 +78,7 @@ class Pixel:
 
     Instance Attributes:
         - rgb: an RGB tuple. If it's None then it's an 'empty' pixel
-        - alpha: opacity percentage
+        - alpha: alpha percentage
         - coord: x, y coords for the hexagonal grid
         - adj: list of neighbouring pixels
         - position: actual drawn position on pygame canvas (centre of pixel). If it's None then it hasn't been drawn
@@ -113,31 +117,22 @@ class Pixel:
         return [self.rgb, self.alpha, self.position, self.size, self.selected] == \
             [other.rgb, other.alpha, other.position, other.size, other.selected]
 
-    def recolour(self, colour: tuple[int, int, int] | None, opacity: float = 1.0, overwrite: bool = False) -> None:
+    def recolour(self, colour: tuple[int, int, int] | None, alpha: float = 1.0, overwrite: bool = False) -> None:
         """recolour a pixel"""
         if not overwrite:
             if colour:
-                a1, a2 = self.alpha, opacity
-                rgb1, rgb2 = self.rgb, colour
-
-                final_alpha = max(1 - (1 - a1) * (1 - a2), 0.001)
-
-                self.rgb = (min(255, round((rgb1[0] * a1 * (1 - a2) + rgb2[0] * a2) / final_alpha)),
-                            min(255, round((rgb1[1] * a1 * (1 - a2) + rgb2[1] * a2) / final_alpha)),
-                            min(255, round((rgb1[2] * a1 * (1 - a2) + rgb2[2] * a2) / final_alpha)))
-                self.alpha = final_alpha
-
+                self.rgb, self.alpha = colour_add(self.rgb, colour, self.alpha, alpha)
             else:  # erase
-                self.alpha = max(0.0, self.alpha * (1 - opacity))
+                self.alpha = max(0.0, self.alpha * (1 - alpha))
                 # if self.alpha == 0.0:
                 #     self.rgb = None  # fully erased
         else:
             self.rgb = colour
-            self.alpha = opacity
+            self.alpha = alpha
 
     def alike(self, other: Pixel, tolerance: float, alpha_tolerate: bool = True,
               relative_rgba: tuple[int | float] | None = None) -> bool:
-        """determines if two pixels have similar colour and opacity given a tolerance
+        """determines if two pixels have similar colour and alpha given a tolerance
         Note: a tolerance of 0.0 means only pixels with exactly the same colour are alike
         A tolerance of 1.0 means any pixel colour is alike
 
@@ -146,8 +141,9 @@ class Pixel:
         if not relative_rgba:
             relative_rgba = self.rgb + (self.alpha,)
         col_deviation = sum(abs(relative_rgba[i] - other.rgb[i]) for i in range(3)) / 3 / 255
+        print(col_deviation)
         alpha_deviation = abs(relative_rgba[3] - other.alpha) if alpha_tolerate else 0.0
-        return col_deviation <= tolerance and alpha_deviation <= tolerance
+        return col_deviation <= tolerance ** 2 and alpha_deviation <= tolerance ** 2
 
     def relation(self, other: Pixel) -> int:
         """how close one pixel is from another, in which self is the centre of a big hexagon,
@@ -166,19 +162,19 @@ class Pixel:
 
     def paint_adj(self, visited: set[Pixel], pix_queue: list, canv: HexCanvas,
                   screen: pygame.Surface, relative_rgba: tuple[int | float], colour: tuple[int, int, int],
-                  opacity: float, overwrite: bool = False, alpha_dim: float = 0.0, tolerance: float = 0.0,
+                  alpha: float, overwrite: bool = False, alpha_dim: float = 0.0, tolerance: float = 0.0,
                   alpha_tolerate: bool = True, draw_inloop=False, adj_index: int = 0,
-                  spiral: bool = False, keep_mass: bool = False) -> set[Pixel]:
+                  spiral: int = 0, keep_mass: bool = False) -> set[Pixel]:
         """colours the adjacent pixels and itself into a certain colour, possibly dminishing alpha affect
         used for antialiasing, bucket-fill, selecting, paint brush, blur, scramble"""
         # global RECURSION_STAT
         # RECURSION_STAT += 1
         # print(RECURSION_STAT)
 
-        if opacity > 0:
+        if alpha > 0:
             if spiral and self not in visited:
-                if self.alpha != opacity or self.rgb != colour:
-                    self.recolour(colour, opacity, overwrite)
+                if self.alpha != alpha or self.rgb != colour:
+                    self.recolour(colour, alpha, overwrite)
                     if draw_inloop:
                         actual_drawn = canv.layers[-1][self.coord[1]][self.coord[0]]
                         pygame_configure.draw_hexagon(screen, actual_drawn.rgb + (actual_drawn.alpha,),
@@ -189,25 +185,25 @@ class Pixel:
                 for pix in self.adj:
                     if pix not in visited and pix not in pix_queue:
                         if self.alike(pix, tolerance, alpha_tolerate, relative_rgba):
-                            adj_index = (adj_index + 1) % 1
+                            adj_index = (adj_index + 1) % spiral
                             more = pix.paint_adj(visited=visited, pix_queue=new_pix_queue, canv=canv, screen=screen,
-                                                 relative_rgba=relative_rgba, colour=colour, opacity=opacity - alpha_dim,
+                                                 relative_rgba=relative_rgba, colour=colour, alpha=alpha - alpha_dim,
                                                  overwrite=overwrite, alpha_dim=alpha_dim, tolerance=tolerance,
                                                  alpha_tolerate=alpha_tolerate, draw_inloop=draw_inloop, adj_index=adj_index,
                                                  spiral=spiral, keep_mass=keep_mass)
                             visited.update(more)
             elif not spiral:
-                index, curr_alpha = 0, opacity
+                index, curr_alpha = 0, alpha
                 while pix_queue and index < len(pix_queue) and curr_alpha > 0:
                     pix = pix_queue[index]
                     if not keep_mass:
-                        curr_alpha = opacity - self.relation(pix) * alpha_dim
+                        curr_alpha = alpha - self.relation(pix) * alpha_dim
                     else:
                         curr_alpha -= alpha_dim / 10
                     # here we use pix_queue as a priority queue as opposed to in spiral mode (opposite use)
                     if pix not in visited and self.alike(pix, tolerance, alpha_tolerate, relative_rgba) and curr_alpha > 0:
                         pix_queue = pix_queue + [x for x in pix.adj if x not in pix_queue and x not in visited]
-                        if pix.alpha != opacity or pix.rgb != colour:
+                        if pix.alpha != alpha or pix.rgb != colour:
                             pix.recolour(colour, curr_alpha, overwrite)
                             if draw_inloop:
                                 actual_drawn = canv.layers[-1][pix.coord[1]][pix.coord[0]]
@@ -391,6 +387,7 @@ class HexCanvas(CanvasADT):
                 line.add(pix)
                 if not temp:
                     pix.recolour(col, alpha, overwrite)
+                # print(col, alpha)
 
         return line
 
@@ -538,8 +535,8 @@ class ToolBelt:
         - type: the name of the tool currently in use
         - size: size of tool (e.g. a size 3 pencil draws a cluster of 7 pixels in size)
         - colour, colour2: colour rgb values of the tool (you can switch between these two, though gradient uses both)
-        - opacity, opacity2: same idea as for colour, colour2, but for alpha value (transparency)
-        - hardness: given the size, a hardness of 1.0 would be a full 1.0 opacity all around, but with less hardness,
+        - alpha, alpha2: same idea as for colour, colour2, but for alpha value (transparency)
+        - hardness: given the size, a hardness of 1.0 would be a full 1.0 alpha all around, but with less hardness,
                     as you deviate from the center of the cursor, the alpha effect on a pixel diminishes
         - tolerance: how similar a rgb+a of a pixel value must be to be considered the 'same' colour
                     (used for bucket and magic wand)
@@ -553,15 +550,15 @@ class ToolBelt:
     size: int
     colour: tuple[int, int, int]
     colour2: tuple[int, int, int]
-    opacity: float
-    opacity2: float
+    alpha: float
+    alpha2: float
     hardness: float
     tolerance: float
     alpha_tolerate: bool
     positions: list[tuple]
     overwrite: bool
     globally: bool
-    spiral: bool
+    spiral: int
     alpha_dim: float
     keep_mass: bool
 
@@ -575,16 +572,17 @@ class ToolBelt:
         self.size = 1
         self.colour = (0, 0, 0)
         self.colour2 = (255, 255, 255)
-        self.opacity = 1.0
-        self.opacity2 = 0.5
+        self.alpha = 1.0
+        self.alpha2 = 0.5
         self.using_main = True
-        self.hardness = 0.75  # still unused
+        self.hardness = 1.0  # still unused
         self.positions = []
+
         self.overwrite = False
-        self.tolerance = 0.01
+        self.tolerance = 0.15
         self.alpha_tolerate = True
         self.globally = False
-        self.spiral = False
+        self.spiral = 0  # must be a num from 0 to 6. If it's 0, then it's like spiral is off, and spiral bucket won't apply
         self.alpha_dim = 0.0  # set to 0 for normal bucket behaviour
         self.keep_mass = True  # if there should be a specific amount of paint based on alpha_diminish
 
@@ -594,34 +592,43 @@ class ToolBelt:
         """updates colour"""
         if main_col:
             self.colour = rgb
-            self.opacity = alpha
+            self.alpha = alpha
         else:
             self.colour2 = rgb
-            self.opacity2 = alpha
+            self.alpha2 = alpha
 
     def update_col_to_hsv(self) -> None:
         """update the colour rgb value to be equivalent to its hsv attributes"""
         new_col = hsv_to_rgb(self.hue, self.saturation, self.velocity)
-        self.change_colour(new_col, self.opacity, True)
+        self.change_colour(new_col, self.alpha, True)
 
     def onclick(self, pixel: Pixel, canv: HexCanvas, screen: pygame.Surface,
-                layer: int, pos: tuple[int, int], pix_size: float) -> tuple[list[Pixel], bool]:
+                layer: int, pos: tuple[int, int], pix_size: float,
+                col: tuple[int, int, int] | None, alpha: float | None,
+                already_affected: list[Pixel]) -> tuple[list[Pixel], bool]:
         """when the cursor clicked
 
         returns a tuple containg a list of pixels that require redrawing, and whether they should be drawn on
         a temp temporary layer (e.g. for a line that hasn't been confirmed)
 
         """
-        col = self.colour if self.using_main else self.colour2
-        alpha = self.opacity if self.using_main else self.opacity2
+        # col = self.colour if self.using_main else self.colour2
+        # alpha = self.alpha if self.using_main else self.alpha2
+        if col is None or alpha is None:
+            col, alpha = self.colour, self.alpha
+
         if self.type == 'PENCIL':
-            changed = [pixel]
-            pixel.recolour(col, alpha, self.overwrite)  # update the pixel in the HexCanvas object
-            if self.size == 3:
-                for pix in pixel.adj:
-                    pix.recolour(col, alpha, self.overwrite)
-                    changed.append(pix)
-            return changed, False
+            if pixel not in already_affected:
+                # expected_final_rgba = colour_add(pixel.rgb, col, pixel.alpha, alpha)
+                # if colour_add(pixel.rgb, col, pixel.alpha, alpha)[1] * self.hardness < alpha:
+                changed = [pixel]
+                pixel.recolour(col, alpha * self.hardness, self.overwrite)  # update the pixel in the HexCanvas object
+                if self.size == 3:
+                    for pix in pixel.adj:
+                        pix.recolour(col, alpha * self.hardness, self.overwrite)
+                        changed.append(pix)
+                return changed, False
+            return [], False
 
         elif self.type == 'BUCKET':
             original_rgba = pixel.rgb + (pixel.alpha,)
@@ -648,7 +655,7 @@ class ToolBelt:
                                                       actual_drawn.position, actual_drawn.size)
 
                     changed = pixel.paint_adj(visited=visited, pix_queue=pix_queue, relative_rgba=original_rgba,
-                                              canv=canv, screen=screen, colour=col, opacity=alpha, overwrite=self.overwrite,
+                                              canv=canv, screen=screen, colour=col, alpha=alpha, overwrite=self.overwrite,
                                               alpha_dim=self.alpha_dim, tolerance=self.tolerance,
                                               alpha_tolerate=self.alpha_tolerate, draw_inloop=True, spiral=self.spiral,
                                               keep_mass=self.keep_mass)
@@ -658,9 +665,9 @@ class ToolBelt:
 
         elif self.type == 'COLOUR_PICKER':
             if self.using_main:
-                self.colour, self.opacity = pixel.rgb, pixel.alpha
+                self.colour, self.alpha = pixel.rgb, pixel.alpha
             else:
-                self.colour2, self.opacity2 = pixel.rgb, pixel.alpha
+                self.colour2, self.alpha2 = pixel.rgb, pixel.alpha
 
             return [], False
 
@@ -711,15 +718,15 @@ class UI:
         top_start = 20
         col_choice_side = round(2.5 * (slider_size[0] + 10))
         self.elements = {
-            'hue': UI_elements.Slider(height=slider_size[0], width=slider_size[1], affect=self.tool.hue,
+            'hue': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
                                       sing_click=False, images=["resources/images/huebar.png"],
                                       position=(left_start, top_start),
                                       val_range=(0, 360), etype='hue', host=self),
-            'saturation': UI_elements.Slider(height=slider_size[0], width=slider_size[1], affect=self.tool.saturation,
+            'saturation': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
                                              sing_click=False, images=["resources/images/sliderbar.png"],
                                              position=(left_start, top_start + slider_size[0] + 10),
                                              val_range=(0, 100), etype='saturation', host=self),
-            'velocity': UI_elements.Slider(height=slider_size[0], width=slider_size[1], affect=self.tool.velocity,
+            'velocity': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
                                            sing_click=False, images=["resources/images/sliderbar.png"],
                                            position=(left_start, top_start + 2 * (slider_size[0] + 10)),
                                            val_range=(0, 100), etype='velocity', host=self),
@@ -727,7 +734,15 @@ class UI:
                                             sing_click=True, images=[],
                                             position=(left_start + slider_size[1] + col_choice_side // 5,
                                                       top_start + col_choice_side // 20),
-                                            etype='col_choice', host=self, hold_val={'colour': (0, 0, 0), 'show_info': False})
+                                            etype='col_choice', host=self, hold_val={'colour': (0, 0, 0), 'show_info': False}),
+            'alpha': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
+                                        sing_click=False, images=["resources/images/sliderbarSolid.png"],
+                                        position=(left_start, top_start + 3 * (slider_size[0] + 10)),
+                                        val_range=(0, 100), etype='alpha', host=self, hold_val=self.tool.alpha * 100),
+            'tolerance': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
+                                            sing_click=False, images=["resources/images/sliderbarSolid.png"],
+                                            position=(left_start, top_start + 4 * (slider_size[0] + 10)),
+                                            val_range=(0, 100), etype='tolerance', host=self, hold_val=self.tool.tolerance * 100)
         }
         # assert here (once we made all the UI elements) to enforce a strict naming scheme on elements
         # (due to conditional cases checking for specific names)
@@ -777,24 +792,28 @@ class UI:
                 self.clicking_mode_switch(False)
         else:
             element = self.clicking
-            # extra actions based on element type
+            if element.affect:
+                # getting target object to affect
+                if element.etype in TOOL_CONTROLS:
+                    target_obj = self.tool
+                else:
+                    target_obj = self
+                # updating UI and setting values
+                if element.etype in DECIMAL_SLIDERS:
+                    upload_val = element.on_click(self.screen, x, y) / 100
+                else:
+                    upload_val = element.on_click(self.screen, x, y)
+                setattr(target_obj, element.affect, upload_val)
+            else:
+                element.on_click(self.screen, x, y)
+
             if element.etype in COLOUR_UI:
-                if element.etype == 'hue':
-                    self.tool.hue = element.on_click(self.screen, x, y)
-                elif self.clicking.etype == 'saturation':
-                    self.tool.saturation = element.on_click(self.screen, x, y)
-                elif element.etype == 'velocity':
-                    self.tool.velocity = element.on_click(self.screen, x, y)
                 self.tool.update_col_to_hsv()  # note that this updates self.tool.colour
                 if 'col_choice' in self.elements:
                     self.elements['col_choice'].on_update(self.screen, {
                         'colour': self.tool.colour,
                         'show_info': self.elements['col_choice'].hold_val['show_info']
                     })
-            elif element.affect:
-                element.affect = element.on_click(self.screen, x, y)
-            else:
-                element.on_click(self.screen, x, y)
 
             if element.sing_click:  # if our element that we're dealing with is a single click element
                 self.clicking_mode_switch(False)
@@ -807,7 +826,7 @@ class UI:
             self.click_mode = False
             self.clicking = None
 
-    def update_colour_ui(self, colour: tuple[int, int, int]) -> None:
+    def update_colour_ui(self, colour: tuple[int, int, int], alpha: float = 1.0) -> None:
         """this was made for the colour picker to update the colour sliders"""
         hsv = rgb_to_hsv(colour[0], colour[1], colour[2])
         for element in [x for x in self.elements if x in COLOUR_UI]:
@@ -823,6 +842,9 @@ class UI:
                 'colour': colour,
                 'show_info': self.elements['col_choice'].hold_val['show_info']
             })
+        if 'alpha' in self.elements:
+            self.elements['alpha'].on_update(self.screen, max(0, min(100, round(alpha * 100))))
+            # print(self.tool.alpha)
         self.refresh_ui(only_elements=True)
 
 
@@ -869,7 +891,7 @@ class Program:
 
             # drawing & colouring logistics
             col = self.ui.tool.colour if self.ui.tool.using_main else self.ui.tool.colour2
-            alpha = self.ui.tool.opacity if self.ui.tool.using_main else self.ui.tool.opacity2
+            alpha = self.ui.tool.alpha if self.ui.tool.using_main else self.ui.tool.alpha2
             if self.ui.canvas.drawing:
                 self.drawing_logistics(alpha, col, x, y, self.layer)
             else:
@@ -898,6 +920,7 @@ class Program:
             pixel = self.ui.canvas.pos_gets_pixel(layer, x, y, self.ui.screen)
             self.loop_save['pixel_history'].append(((x, y), pixel))
             fix_pixels = []
+            print(len(self.loop_save['pixel_history']))
 
             # fixing line skidding (drawing lines between two points in free drawing when moving too fast)
             if self.ui.tool.type in {'PENCIL'} and len(self.loop_save['pixel_history']) > 1:
@@ -908,8 +931,10 @@ class Program:
                                                 layer, col, alpha, self.ui.tool.overwrite, False))
             # applying the tool action
             if pixel or (self.ui.tool.type in {'LINE', 'PAINT_LINE'} and len(self.ui.tool.positions) > 0):
+                affected = self.loop_save['pixel_history']
                 pix_to_colour, temporary = self.ui.tool.onclick(pixel, self.ui.canvas, self.ui.screen, layer, (x, y),
-                                                                self.ui.canvas.layers[layer][0][0].size)
+                                                                self.ui.canvas.layers[layer][0][0].size, col, alpha,
+                                                                already_affected=affected)
                 self.loop_save['pixels_tobe_coloured'] = pix_to_colour + fix_pixels
 
                 if self.ui.tool.type in RECOLOUR_TOOLS and not temporary:  # if this tool is one that recolours pixels
@@ -982,7 +1007,7 @@ class Program:
         # randomly change the colour
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_RSHIFT:
             ui.tool.colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-            ui.update_colour_ui(ui.tool.colour)
+            ui.update_colour_ui(ui.tool.colour, ui.tool.alpha)
 
         # start drawing (depending on the tool type, this may only hold true for one loop (i.e. for single click tools)
         elif (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -999,9 +1024,9 @@ class Program:
             pixel = ui.canvas.pos_gets_pixel(layer, x, y, ui.screen)
             if pixel:
                 prev_tool, ui.tool.type = ui.tool.type, 'COLOUR_PICKER'
-                ui.tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y), 0)
+                ui.tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y), 0, None, None, [])
                 ui.tool.type = prev_tool
-                ui.update_colour_ui(ui.tool.colour)
+                ui.update_colour_ui(ui.tool.colour, ui.tool.alpha)
 
         # UI click element event
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not ui.click_mode and ui.not_on_canvas(x, y):

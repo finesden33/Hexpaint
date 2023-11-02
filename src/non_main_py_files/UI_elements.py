@@ -23,7 +23,7 @@ class UIelement:
     hold_val: Any
 
     def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int],
-                 sing_click: bool, affect: Any, host: UI, etype: str, hold_val: Any) -> None:
+                 sing_click: bool, host: UI, etype: str, hold_val: Any, affect: str | None = '') -> None:
         self.height, self.width = height, width
         if self.height == self.width:
             self.orientation = 'square'
@@ -32,7 +32,7 @@ class UIelement:
         self.images = images
         self.position = position
         self.sing_click = sing_click
-        self.affect = affect
+        self.affect = etype if affect == '' else affect
         self.etype = etype
         self.host = host
         self.hold_val = hold_val
@@ -88,9 +88,10 @@ class Slider(UIelement):
     val_range: tuple[int, int]
 
     def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int],
-                 sing_click: bool, affect: Any, etype: str, host: UI, val_range: tuple[int, int]) -> None:
-        super().__init__(height, width, images, position, sing_click, affect, host, etype, hold_val=val_range[0])
-
+                 sing_click: bool, etype: str, host: UI, val_range: tuple[int, int], hold_val: Any = None, affect: str | None = '') -> None:
+        if hold_val is None:
+            hold_val = val_range[0]
+        super().__init__(height, width, images, position, sing_click, host, etype, hold_val, affect)
         self.val_range = val_range
 
     def draw_prior(self, screen: pygame.Surface, from_update: bool = False) -> None:
@@ -155,9 +156,9 @@ class Slider(UIelement):
 
 
 class Shape(UIelement):
-    def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int], sing_click: bool, affect: Any, host: UI,
-                 etype: str, hold_val: dict):
-        super().__init__(height, width, images, position, sing_click, affect, host, etype, hold_val)
+    def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int], sing_click: bool, host: UI,
+                 etype: str, hold_val: dict, affect: str | None = ''):
+        super().__init__(height, width, images, position, sing_click, host, etype, hold_val, affect)
 
     def draw_prior(self, screen: pygame.Surface, from_update: bool = False) -> None:
         """shape border"""
