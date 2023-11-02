@@ -141,7 +141,6 @@ class Pixel:
         if not relative_rgba:
             relative_rgba = self.rgb + (self.alpha,)
         col_deviation = sum(abs(relative_rgba[i] - other.rgb[i]) for i in range(3)) / 3 / 255
-        print(col_deviation)
         alpha_deviation = abs(relative_rgba[3] - other.alpha) if alpha_tolerate else 0.0
         return col_deviation <= tolerance ** 2 and alpha_deviation <= tolerance ** 2
 
@@ -460,7 +459,7 @@ class HexCanvas(CanvasADT):
                 for pixel in row:
                     self.get_adjacent_pixels(len(self.layers) - 1, pixel.coord, True)
 
-    def save(self) -> None:
+    def save(self, current_file: str = None) -> str:
         """save the file as a project file (not an export image)"""
         save_file = [[], self.layers[0][0][0].size]
         for layer in self.layers:
@@ -471,12 +470,14 @@ class HexCanvas(CanvasADT):
                     rw.append(pix.to_dict())
                 lyr.append(rw)
             save_file[0].append(lyr)
-        create_file(save_file)
+        file_name = create_file(save_file, current_file)
+        return file_name
 
-    def load(self, screen: pygame.Surface, use_current: bool = False) -> bool:
+    def load(self, screen: pygame.Surface, use_current: bool = False) -> tuple[bool, str]:
         """loads a valid file to remake the canvas object"""
+        file_name = ''
         if not use_current:
-            file = load_file()  # load file is a tuple of layers + a size
+            file, file_name = load_file()  # load file is a tuple of layers + a size
             if file:
                 lst = []
                 new_canvas_layers, size = file
@@ -493,7 +494,7 @@ class HexCanvas(CanvasADT):
                 self.history.wipe()
             else:
                 print('failed to load file')
-                return False
+                return False, ''
 
         self.width, self.height = len(self.layers[0][0]), len(self.layers[0])
         self.position_pixels(screen)
@@ -501,7 +502,7 @@ class HexCanvas(CanvasADT):
             for pixel in row:
                 self.get_adjacent_pixels(0, pixel.coord, True)
         self.needs_redraw, self.drawing = True, False
-        return True
+        return True, file_name
 
 
 class HistoryEntry(CanvasADT):
@@ -854,14 +855,16 @@ class Program:
     layer: int
     running: bool
     loop_save: dict
-    just_finished_drawing = bool
-    just_loaded = bool
+    just_finished_drawing: bool
+    just_loaded: bool
+    file_name: str | None
 
     def __init__(self, size: tuple[int, int] = (650, 650), canv_size: tuple[int, int] = (65, 65)):
         sys.setrecursionlimit(size[0] * size[1])
 
         self.ui = UI(screen_size=size, canv_size=canv_size)
         self.layer = 0
+        self.file_name = None
 
         # refresh ui to make everything appear for the first time
         self.ui.refresh_ui()
@@ -920,7 +923,7 @@ class Program:
             pixel = self.ui.canvas.pos_gets_pixel(layer, x, y, self.ui.screen)
             self.loop_save['pixel_history'].append(((x, y), pixel))
             fix_pixels = []
-            print(len(self.loop_save['pixel_history']))
+            # print(len(self.loop_save['pixel_history']))
 
             # fixing line skidding (drawing lines between two points in free drawing when moving too fast)
             if self.ui.tool.type in {'PENCIL'} and len(self.loop_save['pixel_history']) > 1:
@@ -988,9 +991,15 @@ class Program:
             elif event.key == pygame.K_h:  # print the history of actions in the console
                 print(ui.canvas.history)
             elif event.key == pygame.K_s:  # save file
-                ui.canvas.save()
+                new_file = ui.canvas.save(self.file_name)
+                if new_file:
+                    self.file_name = new_file
+                print(self.file_name)
             elif event.key == pygame.K_l:  # load save file
-                if ui.canvas.load(ui.screen):
+                loaded, new_file = ui.canvas.load(ui.screen)
+                if loaded and new_file:
+                    self.file_name = new_file
+                    print(self.file_name)
                     # background redraw
                     ui.refresh_ui()
                     just_loaded = True
