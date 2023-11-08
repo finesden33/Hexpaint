@@ -1,6 +1,9 @@
 """UI element classes"""
+from __future__ import annotations
 import math
 from typing import Any
+
+# import pygame
 
 from src.non_main_py_files.extra_functions import hsv_to_rgb, rgb_to_hex
 from src.non_main_py_files.pygame_configure import fill_gradient, draw_lines_g, draw_square, draw_text
@@ -21,9 +24,10 @@ class UIelement:
     etype: str
     host: UI
     hold_val: Any
+    label: str
 
     def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int],
-                 sing_click: bool, host: UI, etype: str, hold_val: Any, affect: str | None = '') -> None:
+                 sing_click: bool, host: UI, etype: str, hold_val: Any, affect: str | None = '', label: str = '') -> None:
         self.height, self.width = height, width
         if self.height == self.width:
             self.orientation = 'square'
@@ -36,30 +40,34 @@ class UIelement:
         self.etype = etype
         self.host = host
         self.hold_val = hold_val
+        self.label = label
 
     def rescale(self, height: int, width: int, screen: pygame.Surface) -> None:
         """resize the element (usually happens when esizing the program window"""
         self.height, self.width = height, width
         self.draw(screen)
 
-    def draw(self, screen: pygame.Surface, with_prior: bool = True, from_update: bool = False) -> None:
+    def draw(self, screen: pygame.Surface, with_prior: bool = True, from_update: bool = False, image_to_use: int = 0) -> None:
         """draws the element in the pygame window"""
         if with_prior:
             self.draw_prior(screen, from_update)
 
         if self.images:
-            image = pygame.image.load(self.images[0])
+            image = pygame.image.load(self.images[image_to_use])
             image = pygame.transform.scale(image, (self.width, self.height))
             screen.blit(image, self.position)
 
         self.draw_extra(screen)
+        if self.label:
+            draw_text(screen, (self.position[0], round(self.position[1] - self.height * 1.1)),
+                      self.label, font_size=20, col=((0, 0, 0), None))
 
     def draw_prior(self, screen: pygame.Surface, from_update: bool = False) -> None:
-        """draw extra components before main images"""
+        """draw extra pygame drawings before main images"""
         raise NotImplementedError
 
     def draw_extra(self, screen: pygame.Surface) -> None:
-        """draw extra components after main images"""
+        """draw extra pygame drawings after main images"""
         raise NotImplementedError
 
     def mouse_pos(self, mouse_x: float, mouse_y: float) -> tuple[float, float] | None:
@@ -88,10 +96,11 @@ class Slider(UIelement):
     val_range: tuple[int, int]
 
     def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int],
-                 sing_click: bool, etype: str, host: UI, val_range: tuple[int, int], hold_val: Any = None, affect: str | None = '') -> None:
+                 sing_click: bool, etype: str, host: UI, val_range: tuple[int, int],
+                 hold_val: Any = None, affect: str | None = '', label: str = '') -> None:
         if hold_val is None:
             hold_val = val_range[0]
-        super().__init__(height, width, images, position, sing_click, host, etype, hold_val, affect)
+        super().__init__(height, width, images, position, sing_click, host, etype, hold_val, affect, label)
         self.val_range = val_range
 
     def draw_prior(self, screen: pygame.Surface, from_update: bool = False) -> None:
@@ -157,8 +166,8 @@ class Slider(UIelement):
 
 class Shape(UIelement):
     def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int], sing_click: bool, host: UI,
-                 etype: str, hold_val: dict, affect: str | None = ''):
-        super().__init__(height, width, images, position, sing_click, host, etype, hold_val, affect)
+                 etype: str, hold_val: dict, affect: str | None = '', label: str = ''):
+        super().__init__(height, width, images, position, sing_click, host, etype, hold_val, affect, label)
 
     def draw_prior(self, screen: pygame.Surface, from_update: bool = False) -> None:
         """shape border"""
@@ -192,3 +201,66 @@ class Shape(UIelement):
         """print colour"""
         self.hold_val['show_info'] = not self.hold_val['show_info']
         self.draw(screen)
+
+
+class Button(UIelement):
+    hold_val: bool
+    connections: set[str] | None
+
+    def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int], host: UI, etype: str,
+                 hold_val: Any, affect: str | None = '', label: str = '', connections: set[str] | None = None):
+        super().__init__(height, width, images, position, True, host, etype, hold_val, affect, label)
+        self.connections = connections
+
+    def draw_prior(self, screen: pygame.Surface, from_update: bool = False) -> None:
+        if self.hold_val:
+            image = "resources/images/buttonOn.png"
+        else:
+            image = "resources/images/buttonOff.png"
+        image = pygame.image.load(image)
+        image = pygame.transform.scale(image, (self.width, self.height))
+        screen.blit(image, self.position)
+
+    def draw_extra(self, screen: pygame.Surface) -> None:
+        """do nothing"""
+
+    def on_click(self, screen: pygame.Surface, mouse_x: int, mouse_y: int) -> Any:
+        """print colour"""
+        # note, if the button has no connections, then th following code does nothing
+        if self.connections:
+            for e in self.host.elements:
+                element = self.host.elements[e]
+                if element.etype in self.connections and isinstance(element, Button):
+                    element.hold_val = False
+                    element.draw(screen)
+            self.hold_val = True
+            self.draw(screen)
+            return self.hold_val
+
+
+class ToggleButton(Button):
+    def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int], host: UI, etype: str,
+                 hold_val: Any, affect: str | None = '', label: str = ''):
+        super().__init__(height, width, images, position, host, etype, hold_val, affect, label)
+
+    def on_click(self, screen: pygame.Surface, mouse_x: int, mouse_y: int) -> Any:
+        self.hold_val = not self.hold_val
+        self.draw(screen)
+        return self.hold_val
+
+
+class ClickButton(Button):
+    def __init__(self, height: int, width: int, images: list[str], position: tuple[int, int], host: UI, etype: str,
+                 hold_val: Any, affect: str | None = ''):
+        super().__init__(height, width, images, position, host, etype, hold_val, affect)
+
+    def on_click(self, screen: pygame.Surface, mouse_x: int, mouse_y: int) -> Any:
+        # self.hold_val = True
+        # return self.hold_val
+        raise NotImplementedError
+
+    def when_done(self):
+        """when the function call is done"""
+        # eval(self.affect)
+        # self.hold_val = False
+        raise NotImplementedError

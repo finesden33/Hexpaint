@@ -10,19 +10,27 @@ from non_main_py_files.save_and_load import *
 from non_main_py_files.constants import *
 import sys
 
-# TODO: alpha slider
-# TODO: change program so that pixel colour displays as sum of all layers + background default (white by default)
-# TODO: implement hardness and alpha affect
-# TODO: layer select
-# TODO: tool select buttons
+# TODO: organize directory so classes are in a proper hierarchy s.t. there's no coupling
+#       It should be:
+#       1) Pixel and Canvas in top folder,
+#       2) HexCanvas, HistoryEntry and History 2nd folder, import every class from the first folder
+#       3) ToolBelt and Tools subclasses (for the diff tool onclicks) in a 3rd folder that imports everything class from the prev. 2 folders
+#       4) UI class that imports UI_element classes file, imports all classes above
+#       5) Program class in main file, which imports every Class above
 # TODO: split tools into individual objects in a separate file, as children of toolbelt
-# TODO: sliders for tool properties
+# TODO: ui element labels
+# TODO: change program so that pixel colour displays as sum of all layers + background default (white by default)
+# TODO: implement alpha affect
+# TODO: layer gui
+# TODO: layer select functionality and layer visibility toggle
+# TODO: erase tool
+# TODO: tool select buttons (with icons)
 # TODO: gui resizing and malleability functions
 # TODO: line temp draw (makes use of the save_image)
 # TODO: Multiprocressing for undo, fill, etc (tools that take a lot of time), and STOP button (to stop an auto draw midway)
 
 
-class CanvasADT:
+class Canvas:
     """parent class of HexCanvas and HistoryEntry"""
     width: int
     height: int
@@ -159,7 +167,7 @@ class Pixel:
         else:
             return math.floor(x_dif + y_dif)
 
-    def paint_adj(self, visited: set[Pixel], pix_queue: list, canv: HexCanvas,
+    def paint_adj(self, visited: set[Pixel], pix_queue: list, canv: Canvas,
                   screen: pygame.Surface, relative_rgba: tuple[int | float], colour: tuple[int, int, int],
                   alpha: float, overwrite: bool = False, alpha_dim: float = 0.0, tolerance: float = 0.0,
                   alpha_tolerate: bool = True, draw_inloop=False, adj_index: int = 0,
@@ -281,7 +289,7 @@ class History:
         self.future = LinkedList([])
 
 
-class HexCanvas(CanvasADT):
+class HexCanvas(Canvas):
     """the grid where all the pixels live
 
     Instance Attributes:
@@ -505,7 +513,7 @@ class HexCanvas(CanvasADT):
         return True, file_name
 
 
-class HistoryEntry(CanvasADT):
+class HistoryEntry(Canvas):
     """a node in history"""
     action: str  # most recent tool action performed (that got it to this canvas)
     num_affected: int  # number of pixels that were affected
@@ -657,7 +665,7 @@ class ToolBelt:
 
                     changed = pixel.paint_adj(visited=visited, pix_queue=pix_queue, relative_rgba=original_rgba,
                                               canv=canv, screen=screen, colour=col, alpha=alpha, overwrite=self.overwrite,
-                                              alpha_dim=self.alpha_dim, tolerance=self.tolerance,
+                                              alpha_dim=self.alpha_dim / 10, tolerance=self.tolerance,
                                               alpha_tolerate=self.alpha_tolerate, draw_inloop=True, spiral=self.spiral,
                                               keep_mass=self.keep_mass)
                     return list(changed), False
@@ -690,6 +698,13 @@ class ToolBelt:
                 self.positions.append(pixel.position)
             return [], False
 
+    def change_tool(self, tool_name):
+        """switch to specified tool"""
+        if tool_name in TOOLS:
+            self.type = tool_name
+        else:
+            raise Exception
+
 
 class UI:
     """the user interface"""
@@ -718,6 +733,8 @@ class UI:
         left_start = 20
         top_start = 20
         col_choice_side = round(2.5 * (slider_size[0] + 10))
+        y_offset = (10, 30)
+
         self.elements = {
             'hue': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
                                       sing_click=False, images=["resources/images/huebar.png"],
@@ -725,11 +742,11 @@ class UI:
                                       val_range=(0, 360), etype='hue', host=self),
             'saturation': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
                                              sing_click=False, images=["resources/images/sliderbar.png"],
-                                             position=(left_start, top_start + slider_size[0] + 10),
+                                             position=(left_start, top_start + slider_size[0] + y_offset[0]),
                                              val_range=(0, 100), etype='saturation', host=self),
             'velocity': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
                                            sing_click=False, images=["resources/images/sliderbar.png"],
-                                           position=(left_start, top_start + 2 * (slider_size[0] + 10)),
+                                           position=(left_start, top_start + 2 * (slider_size[0] + y_offset[0])),
                                            val_range=(0, 100), etype='velocity', host=self),
             'col_choice': UI_elements.Shape(height=col_choice_side, width=col_choice_side, affect=None,
                                             sing_click=True, images=[],
@@ -738,12 +755,36 @@ class UI:
                                             etype='col_choice', host=self, hold_val={'colour': (0, 0, 0), 'show_info': False}),
             'alpha': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
                                         sing_click=False, images=["resources/images/sliderbarSolid.png"],
-                                        position=(left_start, top_start + 3 * (slider_size[0] + 10)),
+                                        position=(left_start, top_start + 3 * (slider_size[0] + y_offset[0])),
                                         val_range=(0, 100), etype='alpha', host=self, hold_val=self.tool.alpha * 100),
             'tolerance': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
                                             sing_click=False, images=["resources/images/sliderbarSolid.png"],
-                                            position=(left_start, top_start + 4 * (slider_size[0] + 10)),
-                                            val_range=(0, 100), etype='tolerance', host=self, hold_val=self.tool.tolerance * 100)
+                                            position=(left_start, top_start + 4 * (slider_size[0] + y_offset[1])),
+                                            val_range=(0, 100), etype='tolerance', host=self, hold_val=self.tool.tolerance * 100,
+                                            label='Tolerance'),
+            'keep_mass': UI_elements.ToggleButton(height=slider_size[0], width=slider_size[0], images=[],
+                                                  position=(left_start, top_start + 5 * (slider_size[0] + y_offset[1])),
+                                                  etype='keep_mass', host=self, hold_val=True, label='Keep Fill Mass'),
+            'globally': UI_elements.ToggleButton(height=slider_size[0], width=slider_size[0], images=[],
+                                                 position=(left_start + (slider_size[0] + 10), top_start + 5 * (slider_size[0] + 10)),
+                                                 etype='globally', host=self, hold_val=False, label='Global Fill Mode'),
+            'alpha_dim': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
+                                            sing_click=False, images=["resources/images/sliderbarSolid.png"],
+                                            position=(left_start, top_start + 6 * (slider_size[0] + y_offset[1])),
+                                            val_range=(0, 100), etype='alpha_dim', host=self, hold_val=0.0, label='Alpha Diminish'),
+            'PENCIL': UI_elements.Button(height=slider_size[0], width=slider_size[0], images=[], affect="self.tool.change_tool('PENCIL')",
+                                         position=(left_start, top_start + 7 * (slider_size[0] + y_offset[1])),
+                                         etype='PENCIL', host=self, hold_val=True, label='Pencil', connections=TOOLS),
+            'BUCKET': UI_elements.Button(height=slider_size[0], width=slider_size[0], images=[], affect="self.tool.change_tool('BUCKET')",
+                                         position=(left_start, top_start + 8 * (slider_size[0] + y_offset[1])),
+                                         etype='BUCKET', host=self, hold_val=False, label='Fill', connections=TOOLS),
+            'LINE': UI_elements.Button(height=slider_size[0], width=slider_size[0], images=[], affect="self.tool.change_tool('LINE')",
+                                       position=(left_start, top_start + 9 * (slider_size[0] + y_offset[1])),
+                                       etype='LINE', host=self, hold_val=False, label='Line', connections=TOOLS),
+            'PAINT_LINE': UI_elements.Button(height=slider_size[0], width=slider_size[0], images=[],
+                                             affect="self.tool.change_tool('PAINT_LINE')",
+                                             position=(left_start, top_start + 10 * (slider_size[0] + y_offset[1])),
+                                             etype='PAINT_LINE', host=self, hold_val=False, label='Paint Line', connections=TOOLS)
         }
         # assert here (once we made all the UI elements) to enforce a strict naming scheme on elements
         # (due to conditional cases checking for specific names)
@@ -769,9 +810,11 @@ class UI:
                                                      rows=self.canvas.height, cols=self.canvas.width, radius=pix_ref.size)
 
         for e in self.elements:
-            self.elements[e].draw(self.screen)
-
-        # pygame_configure.draw_hexagon(self.screen, (0, 0, 0) + (0.3,), (99.9, 99.9), 20.0)
+            if isinstance(e, UI_elements.Button):
+                image_choice = int(e.hold_val)  # when true is stored, then we use image 1, i.e. the held down version
+            else:
+                image_choice = 0
+            self.elements[e].draw(self.screen, image_to_use=image_choice)
 
     def not_on_canvas(self, mouse_x: float, mouse_y: float) -> bool:
         """returns whether the mouse is currently on hovering the canvas"""
@@ -793,7 +836,10 @@ class UI:
                 self.clicking_mode_switch(False)
         else:
             element = self.clicking
-            if element.affect:
+            if element.etype in TOOLS:
+                eval(element.affect)
+                element.on_click(self.screen, x, y)
+            elif isinstance(element.affect, str):
                 # getting target object to affect
                 if element.etype in TOOL_CONTROLS:
                     target_obj = self.tool
@@ -804,8 +850,9 @@ class UI:
                     upload_val = element.on_click(self.screen, x, y) / 100
                 else:
                     upload_val = element.on_click(self.screen, x, y)
-                setattr(target_obj, element.affect, upload_val)
-            else:
+                if hasattr(target_obj, element.affect):
+                    setattr(target_obj, element.affect, upload_val)
+            elif element.affect is None:
                 element.on_click(self.screen, x, y)
 
             if element.etype in COLOUR_UI:
@@ -847,6 +894,12 @@ class UI:
             self.elements['alpha'].on_update(self.screen, max(0, min(100, round(alpha * 100))))
             # print(self.tool.alpha)
         self.refresh_ui(only_elements=True)
+
+    def update_tool_select_ui(self, tool_selected: str):
+        """updates tool select ui"""
+        for element in [x for x in self.elements if x in TOOLS]:
+            update_value = element == tool_selected
+            self.elements[element].on_update(self.screen, update_value)
 
 
 class Program:
@@ -1012,6 +1065,7 @@ class Program:
         # switch tool (using tool keybinds)
         elif event.type == pygame.KEYDOWN and event.key in KEYBINDS:
             ui.tool.type = KEYBINDS[event.key]
+            ui.update_tool_select_ui(ui.tool.type)
 
         # randomly change the colour
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_RSHIFT:

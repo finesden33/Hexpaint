@@ -208,7 +208,7 @@ def draw_square(screen: pygame.Surface, side: int, pos: tuple[int, int], col: tu
 
 def draw_text(screen: pygame.Surface, pos: tuple[int, int], text: str,
               font_size: int = 12, font_family: str = 'Squarewave-Bold.ttf',
-              col: tuple[tuple[int, int, int], tuple[int, int, int]] = ((0, 0, 0), (255, 255, 255))) -> None:
+              col: tuple[tuple[int, int, int], tuple[int, int, int] | None] = ((0, 0, 0), None)) -> None:
     """draws text on screen"""
     pygame.font.init()
     font = pygame.font.Font('resources/fonts/' + font_family, font_size)
