@@ -1,0 +1,95 @@
+TODO: organize directory so classes are in a proper hierarchy s.t. there's no coupling
+      It should be:
+      1) Pixel and Canvas in top folder,
+      2) HexCanvas, HistoryEntry and History 2nd folder, import every class from the first folder
+      3) ToolBelt and Tools subclasses (for the diff tool onclicks) in a 3rd folder that imports everything class from the prev. 2 folders
+      4) UI class that imports UI_element classes file, imports all classes above
+      5) Program class in main file, which imports every Class above
+TODO: split tools into individual objects in a separate file, as children of toolbelt
+TODO: pick colour from outside the canvas makes it alpha=0, white
+TODO: change canvas default background to actual algo that checkers the canvas instead of of the placeholder image
+TODO: start canvas should be alpha=0, white (implement actual alpha effect of pixels, not just by-layer)
+TODO: change program so that pixel colour displays as sum of all layers + background default (white by default)
+
+TODO: draw line start from outside canvas should start from a point outside the canvas
+
+TODO: pencil tool size option
+TODO: pencil tool fix aliasing and better algorithm for drawing (so we don't get multiple pixels that thicken parts of the line)
+TODO: fill option for diff. algos
+
+TODO: layer select UI and functionality
+TODO: layer visibility toggle and opacity slider
+TODO: pick colour from layer vs from global
+
+TODO: alpha slider should show a demo of alpha using a checkerboard pattern in the slider
+
+TODO: ui element labels
+TODO: reorganize ui on page to make more sense (e.g. global fill button is next to fill tool button)
+TODO: sub-tool option buttons should only appear next to tool select panel if tool is currently selected
+
+TODO: erase tool
+TODO: tool select buttons (with icons)
+TODO: gui resizing and malleability functions
+
+TODO: resize canvas function
+TODO: resize image function
+
+TODO: line temp draw (makes use of the save_image)
+TODO: Multiprocressing for undo, fill, etc (tools that take a lot of time), and STOP button (to stop an auto draw midway)
+
+TODO: select draw tool
+TODO: magic wand tool
+TODO: lasso tool
+TODO: basic select tool
+TODO: move tool
+TODO: rotate tool
+TODO: scale tool
+
+TODO: copy/paste tool for selected area
+
+TODO: for all basic tools (e.g. pencil, fill, line) add these cool functionalities:
+TODO: blur tool
+TODO: sharpen tool
+TODO: jumble tool
+TODO: noise generation tool
+
+TODO: and also tool colour adding options:
+TODO: multiply
+TODO: screen
+TODO: overwrite
+TODO: normal
+TODO: overlay
+TODO: soft light
+TODO: colour burn
+TODO: colour dodge
+TODO: hard light
+TODO: difference
+TODO: exclusion
+
+
+TODO: basic colour transformations (on whole image, or layer or selected area)
+TODO: contrast
+TODO: brightness
+TODO: hue
+TODO: saturation
+TODO: colour balance
+TODO: levels
+TODO: curves
+TODO: exposure
+TODO: gamma
+TODO: vibrance
+TODO: invert
+TODO: threshold
+TODO: posterize
+
+TODO: gradient tool
+TODO: shape tool
+
+TODO: zoom tool
+
+TODO: effects menu:
+TODO: outline
+TODO: shadow
+TODO: glow
+TODO: pixelate
+TODO: emboss

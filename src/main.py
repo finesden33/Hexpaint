@@ -10,25 +10,6 @@ from non_main_py_files.save_and_load import *
 from non_main_py_files.constants import *
 import sys
 
-# TODO: organize directory so classes are in a proper hierarchy s.t. there's no coupling
-#       It should be:
-#       1) Pixel and Canvas in top folder,
-#       2) HexCanvas, HistoryEntry and History 2nd folder, import every class from the first folder
-#       3) ToolBelt and Tools subclasses (for the diff tool onclicks) in a 3rd folder that imports everything class from the prev. 2 folders
-#       4) UI class that imports UI_element classes file, imports all classes above
-#       5) Program class in main file, which imports every Class above
-# TODO: split tools into individual objects in a separate file, as children of toolbelt
-# TODO: ui element labels
-# TODO: change program so that pixel colour displays as sum of all layers + background default (white by default)
-# TODO: implement alpha affect
-# TODO: layer gui
-# TODO: layer select functionality and layer visibility toggle
-# TODO: erase tool
-# TODO: tool select buttons (with icons)
-# TODO: gui resizing and malleability functions
-# TODO: line temp draw (makes use of the save_image)
-# TODO: Multiprocressing for undo, fill, etc (tools that take a lot of time), and STOP button (to stop an auto draw midway)
-
 
 class Canvas:
     """parent class of HexCanvas and HistoryEntry"""
@@ -1101,6 +1082,10 @@ class Program:
         return just_finished_drawing, just_loaded, running
 
 
-def test(n: int = 17) -> None:
+def main(n: int = 17) -> None:
     """test/run the program"""
     Program(SCREEN_SIZES[n], (48, 48))
+
+
+if __name__ == '__main__':
+    main(17)
