@@ -7,6 +7,7 @@ TOOLS = {'PENCIL', 'BUCKET', 'LINE', 'PAINT_LINE', 'LASSO', 'RECT_SELECT', 'MAGI
 CLICK_TOOLS = {'BUCKET', 'MAGIC_WAND', 'COLOUR_PICKER'}
 RECOLOUR_TOOLS = {'PENCIL', 'BUCKET', 'LINE', 'PAINT_LINE', 'PAINT_BRUSH', 'ERASER', 'HEXAGON', 'SQUARE', 'TEXT', 'GRADIENT',
                   'REPLACE', 'BLUR', 'SCRAMBLE'}
+LINE_TOOLS = {'LINE', 'PAINT_LINE'}
 KEYBINDS = {pygame.K_p: 'PENCIL', pygame.K_b: 'BUCKET', pygame.K_l: 'LINE', pygame.K_k: 'PAINT_LINE'}
 SCREEN_W, SCREEN_H = screeninfo.get_monitors()[0].width, screeninfo.get_monitors()[0].height
 SCREEN_SIZES = [(int(SCREEN_W * (x / 100)), int(SCREEN_H * (x / 100))) for x in range(0, 151)

@@ -1,14 +1,11 @@
 """UI element classes"""
 from __future__ import annotations
-import math
+
 from typing import Any
-
-# import pygame
-
-from src.non_main_py_files.extra_functions import hsv_to_rgb, rgb_to_hex
-from src.non_main_py_files.pygame_configure import fill_gradient, draw_lines_g, draw_square, draw_text
-from src.main import UI
-from src.non_main_py_files.constants import *
+from src.aux_code.extra_functions import hsv_to_rgb, rgb_to_hex
+from src.aux_code.pygame_configure import pygame, math, fill_gradient, draw_lines_g, draw_square, draw_text
+from src.aux_code.ui import UI  # needed for (host: UI) arg typing
+from src.aux_code.constants import COLOUR_UI, HORIZONTAL, VERTICAL
 
 
 class UIelement:

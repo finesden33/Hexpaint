@@ -1,21 +1,20 @@
-TODO: organize directory so classes are in a proper hierarchy s.t. there's no coupling
-      It should be:
-      1) Pixel and Canvas in top folder,
-      2) HexCanvas, HistoryEntry and History 2nd folder, import every class from the first folder
-      3) ToolBelt and Tools subclasses (for the diff tool onclicks) in a 3rd folder that imports everything class from the prev. 2 folders
-      4) UI class that imports UI_element classes file, imports all classes above
-      5) Program class in main file, which imports every Class above
 TODO: split tools into individual objects in a separate file, as children of toolbelt
 TODO: pick colour from outside the canvas makes it alpha=0, white
 TODO: change canvas default background to actual algo that checkers the canvas instead of of the placeholder image
 TODO: start canvas should be alpha=0, white (implement actual alpha effect of pixels, not just by-layer)
 TODO: change program so that pixel colour displays as sum of all layers + background default (white by default)
 
+TODO: option for ultra-save that also saves the History object, i.e. all canvas states... this could be beefy so compression is a must
 TODO: draw line start from outside canvas should start from a point outside the canvas
 
 TODO: pencil tool size option
 TODO: pencil tool fix aliasing and better algorithm for drawing (so we don't get multiple pixels that thicken parts of the line)
 TODO: fill option for diff. algos
+
+TODO: touchscreen pencil bug fix? is it possible to fix with pygame?
+TODO: button that auto-maxes velocity and saturation of colour.
+TODO: colour picker keepalpha toggle, layer toggle, global toggle
+TODO: show line draw preview realtime
 
 TODO: layer select UI and functionality
 TODO: layer visibility toggle and opacity slider

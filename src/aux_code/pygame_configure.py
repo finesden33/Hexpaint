@@ -1,11 +1,10 @@
 """configurations for pygame"""
-
 from __future__ import annotations
 
 import colorsys
+import pygame
 import math
 import sys
-import pygame
 
 
 def initialize_pygame_window(width: int, height: int) -> pygame.Surface:
@@ -37,7 +36,7 @@ def screen_as_image(screen: pygame.Surface, canv_place: tuple[int, int, int, int
     return 'resources/temp_images/screenshot.png'
 
 
-def draw_hexagon(screen: pygame.Surface, colour: tuple[int | float] | tuple[int, int, int, float],
+def draw_hexagon(screen: pygame.Surface, colour: tuple[int, int, int] | tuple[int, int, int, float],
                  point: tuple[float, float], radius: float, real_time: bool = False) -> None:
     """draw a hexagon"""
     if len(colour) < 4 or colour[3] > 0.0:
