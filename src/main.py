@@ -18,6 +18,7 @@ class Program:
     running: bool
     loop_save: dict
     just_finished_drawing: bool
+    just_started_drawing: bool
     just_loaded: bool
     file_name: str | None
 
@@ -34,7 +35,7 @@ class Program:
         # loop savers
         self.running = True
         self.loop_save = {'pixel_history': [], 'pixels_tobe_coloured': [], 'pixels_drawn': []}
-        self.just_finished_drawing, self.just_loaded = False, False
+        self.just_finished_drawing = self.just_started_drawing = self.just_loaded = False
 
         # start program
         self.run_program()
@@ -48,8 +49,8 @@ class Program:
             x, y = pygame.mouse.get_pos()
             # handle events
             for event in pygame.event.get():
-                self.just_finished_drawing, self.just_loaded, self.running = (
-                    event_handler(event, self.ui, x, y, self.just_finished_drawing, self.just_loaded,
+                self.just_finished_drawing, self.just_started_drawing, self.just_loaded, self.running = (
+                    event_handler(event, self.ui, x, y, self.just_finished_drawing, self.just_started_drawing, self.just_loaded,
                                   self.layer, self.running, self.file_name, self.loop_save)
                 )
             if self.ui.click_mode:
@@ -91,6 +92,9 @@ class Program:
     def drawing_logistics(self, alpha, col, x, y, layer) -> None:
         """handles drawing stuff"""
         if self.ui.canvas.drawing:
+            if self.just_started_drawing:
+                self.just_started_drawing = False
+                return
             pixel = self.ui.canvas.pos_gets_pixel(layer, x, y, self.ui.screen)
             if pixel and pixel.drawn and self.ui.tool.enforce_draw_once:
                 return
@@ -101,6 +105,7 @@ class Program:
             # fixing line skidding (drawing lines between two points in free drawing when moving too fast)
             if self.ui.tool.type in {'PENCIL'} and len(self.loop_save['pixel_history']) > 1:
                 pix1, pix2 = self.loop_save['pixel_history'][-2], self.loop_save['pixel_history'][-1]
+                print(len(self.loop_save['pixel_history']))
                 if pix1[1] is None or pix2[1] is None or pix1[1] not in pix2[1].adj:
                     fix_pixels = list(
                         self.ui.canvas.get_line(pix1[0], pix2[0], self.ui.canvas.layers[layer][0][0].size, self.ui.screen,
@@ -109,9 +114,9 @@ class Program:
             if pixel or (self.ui.tool.type in LINE_TOOLS and len(self.ui.tool.positions) > 0):
                 pix_to_colour, temporary = self.ui.tool.onclick(pixel, self.ui.canvas, self.ui.screen, layer, (x, y),
                                                                 self.ui.canvas.layers[layer][0][0].size, col, alpha)
-                print(f"pix to colour {len(pix_to_colour)}")
                 self.loop_save['pixels_tobe_coloured'] = pix_to_colour + fix_pixels
-                print(f"pix + fix to colour {len(self.loop_save['pixels_tobe_coloured'])}")
+                # print(f"pix to colour {len(pix_to_colour)}")
+                # print(f"pix + fix to colour {len(self.loop_save['pixels_tobe_coloured'])}")
 
                 if self.ui.tool.type in RECOLOUR_TOOLS and not temporary:  # if this tool is one that recolours pixels
                     for pix, rgba in self.loop_save['pixels_tobe_coloured']:
@@ -173,4 +178,4 @@ def main(n: int = 17, size=(48, 48)) -> None:
 
 
 if __name__ == '__main__':
-    main(17, (48, 48))
+    main(17, (70, 100))
