@@ -115,7 +115,8 @@ class Program:
 
                 if self.ui.tool.type in RECOLOUR_TOOLS and not temporary:  # if this tool is one that recolours pixels
                     for pix, rgba in self.loop_save['pixels_tobe_coloured']:
-                        if pix.drawn:  # this is for pixels drawn because of fix pixels, so they weren't skipped in the first place
+                        if pix.drawn and self.ui.tool.enforce_draw_once:
+                            # this is for pixels drawn because of fix pixels, so they weren't skipped in the first place
                             continue
                         pix.set_drawn(self.ui.tool.enforce_draw_once)
                         self.loop_save['pixels_drawn'].append(pix)
@@ -130,7 +131,12 @@ class Program:
                 for pix in self.loop_save['pixels_drawn']:
                     pix.coloured = False
                     pix.drawn = False
-                self.ui.canvas.history.override(HistoryEntry(self.ui.canvas, self.ui.tool.type))  # fixes an undo/redo related bug
+                if len(self.loop_save['pixels_drawn']) > 0:
+                    self.ui.canvas.history.override(HistoryEntry(self.ui.canvas, self.ui.tool.type, len(self.loop_save['pixels_drawn'])))
+                # self.ui.canvas.history.override(HistoryEntry(self.ui.canvas, self.ui.tool.type))  # fixes an undo/redo related bug
+                self.loop_save['pixels_drawn'] = []
+                self.loop_save['pixel_history'] = []
+                self.loop_save['pixels_tobe_coloured'] = []
 
     def colouring_logistics(self, alpha, col):
         """handles actually configuring the drawings onto the canvas when you're done drawing"""
@@ -138,9 +144,10 @@ class Program:
 
         if self.ui.tool.type in RECOLOUR_TOOLS and 'pixels_tobe_coloured' in self.loop_save:  # if this tool type recolours pixels
             for pix, rgba in self.loop_save['pixels_tobe_coloured']:
-                if pix.coloured:
+                if pix.coloured and self.ui.tool.enforce_draw_once:
                     continue
                 pix.recolour(rgba[:3], rgba[3], self.ui.tool.overwrite)
+                pix.coloured = False
                 actual_drawn = self.ui.canvas.layers[-1][pix.coord[1]][pix.coord[0]]
                 draw_hexagon(self.ui.screen, actual_drawn.rgb + (actual_drawn.alpha,),
                              actual_drawn.position, actual_drawn.size)

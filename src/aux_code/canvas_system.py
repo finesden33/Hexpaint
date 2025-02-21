@@ -178,7 +178,7 @@ class ToolBelt:
                     self.positions[1] = pos
                     line = canv.get_line(self.positions[0], self.positions[1], pix_size,
                                          screen, layer, col, alpha, self.overwrite, self.type == 'LINE')
-                return [x for x in line if not x[0].drawn and not x[0].coloured], self.type == 'LINE'
+                return [x for x in line if (not x[0].drawn and not x[0].coloured and self.enforce_draw_once) or (not self.enforce_draw_once)], self.type == 'LINE'
 
             else:  # if we haven't added an end point yet (i.e. we only have the start point)
                 self.positions.append(actual_pos)
