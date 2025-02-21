@@ -205,13 +205,13 @@ class Pixel:
                     if not keep_mass:
                         curr_alpha = alpha - self.relation(pix) * alpha_dim
                     else:
-                        curr_alpha -= alpha_dim / 10
+                        curr_alpha -= alpha_dim / 10  # TODO: make this 10 be a rate we can change
                     # here we use pix_queue as a priority queue as opposed to in spiral mode (opposite use)
                     if (
                             self.alike(pix, tolerance, alpha_tolerate, relative_rgba) and curr_alpha > 0):
                         pix_queue = pix_queue + [x for x in pix.adj if x not in pix_queue and x not in visited]
                         if pix.alpha != alpha or pix.rgb != colour:
-                            pix.recolour(colour, curr_alpha, overwrite)
+                            # pix.recolour(colour, curr_alpha, overwrite)
                             if draw_inloop:
 
                                 actual_drawn = canv.layers[-1][pix.coord[1]][pix.coord[0]]
