@@ -18,5 +18,7 @@ HORIZONTAL = {'horiz', 'Horiz', 'Horizontal', 'HORIZONTAL', 'horizontal', 'h', '
 VERTICAL = {'vert', 'vertic', 'vertical', 'Vertical', 'VERTICAL', 'v', 'V'}
 COLOUR_UI = {'hue', 'saturation', 'velocity'}
 DECIMAL_SLIDERS = {'alpha', 'tolerance', 'alpha_dim'}
-TOOL_CONTROLS = {'hue', 'saturation', 'velocity', 'alpha', 'tolerance', 'alpha_dim',
-                 'tool_select', 'alpha_tolerate', 'keep_mass', 'alpha_dim', 'globally'}
+# note the TOOL_CONTROLS is strict such that if our ui does not have a UI element for a tool control listed here, there will be an assertion error
+TOOL_CONTROLS = {'hue', 'saturation', 'velocity', 'alpha', 'tolerance', 'alpha_dim', 'keep_mass', 'alpha_dim', 'globally', 'enforce_draw_once'}
+# plans:
+TOOLS_CONTROLS_UNADDED = {'alpha_tolerance', 'tool_select'}
