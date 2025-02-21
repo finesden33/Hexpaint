@@ -70,6 +70,9 @@ class UI:
             'globally': UI_elements.ToggleButton(height=slider_size[0], width=slider_size[0], images=[],
                                                  position=(left_start + (slider_size[0] + 10), top_start + 5 * (slider_size[0] + 10)),
                                                  etype='globally', host=self, hold_val=False, label='Global Fill Mode'),
+            'enforce_draw_once': UI_elements.ToggleButton(height=slider_size[0], width=slider_size[0], images=[],
+                                                 position=(left_start, top_start + 5 * (slider_size[0] + 10)),
+                                                 etype='enforce_draw_once', host=self, hold_val=True, label='Toggle Draw Once Rule'),
             'alpha_dim': UI_elements.Slider(height=slider_size[0], width=slider_size[1],
                                             sing_click=False, images=["resources/images/sliderbarSolid.png"],
                                             position=(left_start, top_start + 6 * (slider_size[0] + y_offset[1])),
@@ -89,6 +92,8 @@ class UI:
                                              etype='PAINT_LINE', host=self, hold_val=False, label='Paint Line', connections=TOOLS)
         }
         # assert here (once we made all the UI elements) to enforce a strict naming scheme on elements
+        for control in TOOL_CONTROLS:
+            assert control in self.elements
         # (due to conditional cases checking for specific names)
         for element in self.elements:
             e = self.elements[element]
@@ -134,6 +139,7 @@ class UI:
                 e = self.elements[element]
                 if e.mouse_pos(x, y):  # if we're hovering it
                     self.clicking = e  # then save that element as the one we're dealing with, until click mode is over
+                    break
             if not self.clicking:  # if we failed to find an element where you clicked
                 self.clicking_mode_switch(False)
         else:

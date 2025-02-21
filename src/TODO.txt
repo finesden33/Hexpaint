@@ -4,6 +4,24 @@ TODO: change canvas default background to actual algo that checkers the canvas i
 TODO: start canvas should be alpha=0, white (implement actual alpha effect of pixels, not just by-layer)
 TODO: change program so that pixel colour displays as sum of all layers + background default (white by default)
 
+TODO: colour once algo (notice if you hold click it acts as multi applies to same pixel. Note, each pixel can only be affected at most ONCE during one drawing mode duration. So make it so when a pixel is changed, mark the pixel's "drawn" to true, then record it to the Program obj's 3d array obj that track pixels affected. So that once drawing mode is done, we can update all affected pixels to drawn: false)
+
+TODO: fine-tuning for rainbow mode (e.g. only change hue, or alpha, or red blue or green etc)
+
+TODO: undo & redo hold down. Also, force redraw after several undos since those tend to make draw bugs
+
+TODO: improve runtime of fill
+
+TODO: special icons instead of placeholder buttons, and then a label when you hover the UI element that appears in tooltip area like in FL Studio
+
+TODO: draw fill tool (like fill but you can continuously fill while dragging along. Note: if you already filled a pixel, you can't fill it again until you release and re-click)
+TODO: paint brush tool (like pencil but has diminish affect) - maybe merge with pencil tool and call pencil when dim is 0
+
+TODO: bug- continous low-alpha clicking for all tools doesn't eventually reach full alpha.
+
+TODO: resizing bug with canvas overlapping the ui. Hmm, this may be a good time to make ui section, and then canvas area (and then this is clickable e.g. draw line starting off the canvas but inside canvas area. But you can't draw in UI area)
+TODO: pan canvas and zoom tools (and buttons), but it's limited to the canvas area of course.
+
 TODO: option for ultra-save that also saves the History object, i.e. all canvas states... this could be beefy so compression is a must
 TODO: draw line start from outside canvas should start from a point outside the canvas
 

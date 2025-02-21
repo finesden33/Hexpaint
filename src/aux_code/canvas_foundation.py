@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+from typing import Any
+
 from src.aux_code.pygame_configure import pygame, math, draw_hexagon
 from src.aux_code.extra_functions import cycle_list, colour_add
 
@@ -74,6 +77,8 @@ class Pixel:
     size: float
     hovered: bool
     selected: bool
+    drawn: bool  # if pixel has been drawn during a draw
+    coloured: bool  # if pixel has been coloured during a colouring. Useful for when pixels are marked drawn but not coloured
 
     def __init__(self, coord: tuple[int, int], colour: tuple[int, int, int] | None,
                  pos: tuple[float, float] | None, size: float = 1.0, alpha: float = 1.0) -> None:
@@ -86,6 +91,8 @@ class Pixel:
         self.size = size
         self.hovered = False
         self.selected = False
+        self.drawn = False
+        self.coloured = False
 
     def copy(self) -> Pixel:
         """returns a copy of itself"""
@@ -97,6 +104,21 @@ class Pixel:
         """checks if another Pixel is a copy of itself (used to avoid unecessary redrawing)"""
         return [self.rgb, self.alpha, self.position, self.size, self.selected] == \
             [other.rgb, other.alpha, other.position, other.size, other.selected]
+
+    def set_drawn(self, enforce_drawn_once: bool) -> bool:
+        """set pixel as drawn. returns false if pixel has already been drawn, i.e. this is a problem"""
+        if enforce_drawn_once:
+            if self.drawn:
+                return False
+            self.drawn = True
+        else:
+            self.drawn = False
+        return True
+
+    def set_undrawn(self) -> None:
+        """set pixel as undrawn"""
+        self.drawn = False
+        # self.coloured will be set to False elsewhere
 
     def recolour(self, colour: tuple[int, int, int] | None, alpha: float = 1.0, overwrite: bool = False) -> None:
         """recolour a pixel"""
@@ -110,6 +132,7 @@ class Pixel:
         else:
             self.rgb = colour
             self.alpha = alpha
+        self.coloured = True
 
     def alike(self, other: Pixel, tolerance: float, alpha_tolerate: bool = True,
               relative_rgba: tuple[int | float] | None = None) -> bool:
@@ -144,7 +167,7 @@ class Pixel:
                   screen: pygame.Surface, relative_rgba: tuple[int | float], colour: tuple[int, int, int],
                   alpha: float, overwrite: bool = False, alpha_dim: float = 0.0, tolerance: float = 0.0,
                   alpha_tolerate: bool = True, draw_inloop=False, adj_index: int = 0,
-                  spiral: int = 0, keep_mass: bool = False) -> set[Pixel]:
+                  spiral: int = 0, keep_mass: bool = False) -> list[Any] | list[tuple[Pixel, tuple[int, int, int, float | Any]]]:
         """colours the adjacent pixels and itself into a certain colour, possibly dminishing alpha affect
         used for antialiasing, bucket-fill, selecting, paint brush, blur, scramble"""
         # global RECURSION_STAT
@@ -173,7 +196,9 @@ class Pixel:
                                                  alpha_tolerate=alpha_tolerate, draw_inloop=draw_inloop, adj_index=adj_index,
                                                  spiral=spiral, keep_mass=keep_mass)
                             visited.update(more)
+                return []
             elif not spiral:
+                changed = []
                 index, curr_alpha = 0, alpha
                 while pix_queue and index < len(pix_queue) and curr_alpha > 0:
                     pix = pix_queue[index]
@@ -182,7 +207,8 @@ class Pixel:
                     else:
                         curr_alpha -= alpha_dim / 10
                     # here we use pix_queue as a priority queue as opposed to in spiral mode (opposite use)
-                    if pix not in visited and self.alike(pix, tolerance, alpha_tolerate, relative_rgba) and curr_alpha > 0:
+                    if (
+                            self.alike(pix, tolerance, alpha_tolerate, relative_rgba) and curr_alpha > 0):
                         pix_queue = pix_queue + [x for x in pix.adj if x not in pix_queue and x not in visited]
                         if pix.alpha != alpha or pix.rgb != colour:
                             pix.recolour(colour, curr_alpha, overwrite)
@@ -194,9 +220,11 @@ class Pixel:
                                     draw_hexagon(screen, rgba, actual_drawn.position, actual_drawn.size)
                             pix_queue.pop(index)
                         visited.add(pix)
+                        changed.append((pix, (colour[0], colour[1], colour[2], curr_alpha)))
                     else:
                         index += 1
-        return [] if draw_inloop else visited
+                return changed
+        return []
 
     def to_dict(self) -> dict:
         """converts pixel object to a dict"""

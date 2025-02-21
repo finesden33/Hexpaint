@@ -46,6 +46,13 @@ class ToolBelt:
     saturation: int
     velocity: int
 
+    # general settings
+    enforce_draw_once: bool
+    pick_alpha: bool
+    rainbow_mode: bool
+    smart_pencil: bool  # algo that ignores misdrawn pixels that would make pencil look bad
+
+
     def __init__(self):
         """create a tool object"""
         self.type = 'PENCIL'
@@ -68,6 +75,11 @@ class ToolBelt:
 
         self.hue, self.saturation, self.velocity = 0, 0, 0
 
+        self.enforce_draw_once = True
+        self.pick_alpha = False
+        self.rainbow_mode = False
+        self.smart_pencil = True
+
     def change_colour(self, rgb: tuple[int, int, int], alpha: float, main_col: bool):
         """updates colour"""
         if main_col:
@@ -84,8 +96,7 @@ class ToolBelt:
 
     def onclick(self, pixel: Pixel, canv: HexCanvas, screen: pygame.Surface,
                 layer: int, pos: tuple[int, int], pix_size: float,
-                col: tuple[int, int, int] | None, alpha: float | None,
-                already_affected: list[Pixel]) -> tuple[list[Pixel], bool]:
+                col: tuple[int, int, int] | None, alpha: float | None) -> tuple[list[tuple[Pixel, tuple[int, int, int, float]]], bool]:
         """when the cursor clicked
 
         returns a tuple containg a list of pixels that require redrawing, and whether they should be drawn on
@@ -98,15 +109,13 @@ class ToolBelt:
             col, alpha = self.colour, self.alpha
 
         if self.type == 'PENCIL':
-            if pixel not in already_affected:
+            if not pixel.drawn:
                 # expected_final_rgba = colour_add(pixel.rgb, col, pixel.alpha, alpha)
                 # if colour_add(pixel.rgb, col, pixel.alpha, alpha)[1] * self.hardness < alpha:
-                changed = [pixel]
-                pixel.recolour(col, alpha * self.hardness, self.overwrite)  # update the pixel in the HexCanvas object
+                changed = [(pixel, (col[0], col[1], col[2], alpha))]
                 if self.size == 3:
                     for pix in pixel.adj:
-                        pix.recolour(col, alpha * self.hardness, self.overwrite)
-                        changed.append(pix)
+                        changed.append((pix, (col[0], col[1], col[2], alpha)))
                 return changed, False
             return [], False
 
@@ -119,8 +128,8 @@ class ToolBelt:
                         for pix in row:
                             if pix.alike(pix, self.tolerance, self.alpha_tolerate, original_rgba) and \
                                (pix.rgb != col or pix.alpha != alpha):
-                                pix.recolour(col, alpha, self.overwrite)
-                                changed.append(pix)
+                                # pix.recolour(col, alpha, self.overwrite)
+                                changed.append((pix, (col[0], col[1], col[2], alpha)))
                     return changed, False
                 else:
                     original_rgba = pixel.rgb + (pixel.alpha,)
@@ -129,25 +138,29 @@ class ToolBelt:
                     else:
                         visited, pix_queue = {pixel}, pixel.adj
                         # draw the first pixel
-                        pixel.recolour(col, alpha, self.overwrite)
-                        actual_drawn = canv.layers[-1][pixel.coord[1]][pixel.coord[0]]
-                        draw_hexagon(screen, actual_drawn.rgb + (actual_drawn.alpha,),
-                                     actual_drawn.position, actual_drawn.size)
+                        # pixel.recolour(col, alpha, self.overwrite)
+                        # actual_drawn = canv.layers[-1][pixel.coord[1]][pixel.coord[0]]
+                        # draw_hexagon(screen, actual_drawn.rgb + (actual_drawn.alpha,),
+                        #              actual_drawn.position, actual_drawn.size)
 
                     changed = pixel.paint_adj(visited=visited, pix_queue=pix_queue, relative_rgba=original_rgba,
                                               canv=canv, screen=screen, colour=col, alpha=alpha, overwrite=self.overwrite,
                                               alpha_dim=self.alpha_dim / 10, tolerance=self.tolerance,
                                               alpha_tolerate=self.alpha_tolerate, draw_inloop=True, spiral=self.spiral,
                                               keep_mass=self.keep_mass)
-                    return list(changed), False
+                    return list(changed) + [(pixel, (col[0], col[1], col[2], alpha))], False
             else:
                 return [], False
 
         elif self.type == 'COLOUR_PICKER':
             if self.using_main:
-                self.colour, self.alpha = pixel.rgb, pixel.alpha
+                self.colour = pixel.rgb
+                if self.pick_alpha:
+                    self.alpha = pixel.alpha
             else:
-                self.colour2, self.alpha2 = pixel.rgb, pixel.alpha
+                self.colour2 = pixel.rgb
+                if self.pick_alpha:
+                    self.alpha2 = pixel.alpha
 
             return [], False
 
@@ -165,7 +178,7 @@ class ToolBelt:
                     self.positions[1] = pos
                     line = canv.get_line(self.positions[0], self.positions[1], pix_size,
                                          screen, layer, col, alpha, self.overwrite, self.type == 'LINE')
-                return list(line), self.type == 'LINE'
+                return [x for x in line if not x[0].drawn and not x[0].coloured], self.type == 'LINE'
 
             else:  # if we haven't added an end point yet (i.e. we only have the start point)
                 self.positions.append(actual_pos)
@@ -260,7 +273,7 @@ class HexCanvas(Canvas):
         raise NotImplementedError
 
     def get_line(self, p1: tuple[int, int], p2: tuple[int, int], segment_rate: float, screen: pygame.Surface,
-                 layer: int, col: tuple[int, int, int], alpha: float, overwrite: bool, temp: bool = False) -> set[Pixel]:
+                 layer: int, col: tuple[int, int, int], alpha: float, overwrite: bool, temp: bool = False) -> set[tuple[Pixel, tuple[int, int, int, float]]]:
         """makes a line between two points on a hex canvas, and return a list of every pixel on the line"""
         line = set()
         x1, y1, x2, y2, = p1[0], p1[1], p2[0], p2[1]
@@ -281,9 +294,9 @@ class HexCanvas(Canvas):
         for point in points_to_check:
             pix = self.pos_gets_pixel(layer, math.floor(point[0]), math.floor(point[1]), screen)
             if pix:
-                line.add(pix)
-                if not temp:
-                    pix.recolour(col, alpha, overwrite)
+                line.add((pix, (col[0], col[1], col[2], alpha)))
+                # if not temp:
+                #     pix.recolour(col, alpha, overwrite)
                 # print(col, alpha)
 
         return line
@@ -306,11 +319,13 @@ class HexCanvas(Canvas):
     def undo(self, screen: pygame.Surface) -> None:
         """returns board to a previous state in history"""
         if self.history.travel_back():  # this also mutates the history (in .travel_back() if it's true)
+            print('undid')
             self.update_canv_version(screen)
 
     def redo(self, screen: pygame.Surface) -> None:
         """returns board to a future state in history"""
         if self.history.travel_forward():  # this also mutates the history (in .travel_back() if it's true)
+            print('redid')
             self.update_canv_version(screen)
 
     def update_canv_version(self, screen: pygame.Surface) -> None:

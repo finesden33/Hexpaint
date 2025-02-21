@@ -1,14 +1,13 @@
 """for handling different events"""
 from __future__ import annotations
 
-from src.aux_code.constants import KEYBINDS, LINE_TOOLS
+from src.aux_code.constants import KEYBINDS
 from src.aux_code.ui import UI
 from src.aux_code.pygame_configure import pygame, screen_as_image
-import random
 
 
 def event_handler(event: pygame.event, ui: UI, x: int, y: int, just_finished_drawing, just_loaded, layer: int,
-                  running: bool, file_name: str, tool: str):
+                  running: bool, file_name: str, save_loop: dict) -> tuple[bool, bool, bool]:
     """handles different events"""
     if event.type == pygame.QUIT:
         running = False
@@ -55,8 +54,10 @@ def event_handler(event: pygame.event, ui: UI, x: int, y: int, just_finished_dra
 
     # randomly change the colour
     elif event.type == pygame.KEYDOWN and event.key == pygame.K_RSHIFT:
-        ui.tool.colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-        ui.update_colour_ui(ui.tool.colour, ui.tool.alpha)
+        ui.tool.rainbow_mode = True
+
+    elif ui.tool.rainbow_mode and event.type == pygame.KEYUP and event.key == pygame.K_RSHIFT:
+        ui.tool.rainbow_mode = False
 
     # start drawing (depending on the tool type, this may only hold true for one loop (i.e. for single click tools)
     elif (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
@@ -74,9 +75,11 @@ def event_handler(event: pygame.event, ui: UI, x: int, y: int, just_finished_dra
         pixel = ui.canvas.pos_gets_pixel(layer, x, y, ui.screen)
         if pixel:
             prev_tool, ui.tool.type = ui.tool.type, 'COLOUR_PICKER'
-            ui.tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y), 0, None, None, [])
+            ui.tool.onclick(pixel, ui.canvas, ui.screen, layer, (x, y), 0, None, None)
             ui.tool.type = prev_tool
             ui.update_colour_ui(ui.tool.colour, ui.tool.alpha)
+        else:
+            print('No pixel to pick')
 
     # UI click element event
     elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and not ui.click_mode and ui.not_on_canvas(x, y):

@@ -1,5 +1,8 @@
 """main python file"""
 from __future__ import annotations
+
+import random
+
 from aux_code.ui import UI
 from aux_code.history_system import HistoryEntry
 from aux_code.pygame_configure import pygame, draw_hexagon
@@ -30,7 +33,7 @@ class Program:
 
         # loop savers
         self.running = True
-        self.loop_save = {'pixel_history': []}
+        self.loop_save = {'pixel_history': [], 'pixels_tobe_coloured': [], 'pixels_drawn': []}
         self.just_finished_drawing, self.just_loaded = False, False
 
         # start program
@@ -47,14 +50,22 @@ class Program:
             for event in pygame.event.get():
                 self.just_finished_drawing, self.just_loaded, self.running = (
                     event_handler(event, self.ui, x, y, self.just_finished_drawing, self.just_loaded,
-                                  self.layer, self.running, self.file_name, self.ui.tool.type)
+                                  self.layer, self.running, self.file_name, self.loop_save)
                 )
             if self.ui.click_mode:
                 self.ui.during_click_mode(x, y)
 
-            # drawing & colouring logistics
-            col = self.ui.tool.colour if self.ui.tool.using_main else self.ui.tool.colour2
+            # pick colour for drawing
+            if self.ui.tool.rainbow_mode:
+                self.colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+                self.ui.update_colour_ui(self.colour, self.ui.tool.alpha)
+                self.ui.tool.colour = self.colour
+                col = self.colour
+            else:
+                col = self.ui.tool.colour if self.ui.tool.using_main else self.ui.tool.colour2
             alpha = self.ui.tool.alpha if self.ui.tool.using_main else self.ui.tool.alpha2
+
+            # drawing
             if self.ui.canvas.drawing:
                 self.drawing_logistics(alpha, col, x, y, self.layer)
             else:
@@ -77,10 +88,12 @@ class Program:
 
             pygame.display.flip()
 
-    def drawing_logistics(self, alpha, col, x, y, layer):
+    def drawing_logistics(self, alpha, col, x, y, layer) -> None:
         """handles drawing stuff"""
         if self.ui.canvas.drawing:
             pixel = self.ui.canvas.pos_gets_pixel(layer, x, y, self.ui.screen)
+            if pixel and pixel.drawn and self.ui.tool.enforce_draw_once:
+                return
             self.loop_save['pixel_history'].append(((x, y), pixel))
             fix_pixels = []
             # print(len(self.loop_save['pixel_history']))
@@ -94,14 +107,19 @@ class Program:
                                                 layer, col, alpha, self.ui.tool.overwrite, False))
             # applying the tool action
             if pixel or (self.ui.tool.type in LINE_TOOLS and len(self.ui.tool.positions) > 0):
-                affected = self.loop_save['pixel_history']
                 pix_to_colour, temporary = self.ui.tool.onclick(pixel, self.ui.canvas, self.ui.screen, layer, (x, y),
-                                                                self.ui.canvas.layers[layer][0][0].size, col, alpha,
-                                                                already_affected=affected)
+                                                                self.ui.canvas.layers[layer][0][0].size, col, alpha)
+                print(f"pix to colour {len(pix_to_colour)}")
                 self.loop_save['pixels_tobe_coloured'] = pix_to_colour + fix_pixels
+                print(f"pix + fix to colour {len(self.loop_save['pixels_tobe_coloured'])}")
 
                 if self.ui.tool.type in RECOLOUR_TOOLS and not temporary:  # if this tool is one that recolours pixels
-                    for pix in self.loop_save['pixels_tobe_coloured']:
+                    for pix, rgba in self.loop_save['pixels_tobe_coloured']:
+                        if pix.drawn:  # this is for pixels drawn because of fix pixels, so they weren't skipped in the first place
+                            continue
+                        pix.set_drawn(self.ui.tool.enforce_draw_once)
+                        self.loop_save['pixels_drawn'].append(pix)
+                        pix.recolour(rgba[:3], rgba[3] * self.ui.tool.hardness, self.ui.tool.overwrite)
                         actual_drawn = self.ui.canvas.layers[-1][pix.coord[1]][pix.coord[0]]
                         draw_hexagon(self.ui.screen, actual_drawn.rgb + (actual_drawn.alpha,),
                                      actual_drawn.position, actual_drawn.size)
@@ -109,24 +127,37 @@ class Program:
             # disable drawing mode for click tools (e.g. bucket)
             if self.ui.tool.type in CLICK_TOOLS:
                 self.ui.canvas.drawing_mode(False, self.ui.tool)
+                for pix in self.loop_save['pixels_drawn']:
+                    pix.coloured = False
+                    pix.drawn = False
                 self.ui.canvas.history.override(HistoryEntry(self.ui.canvas, self.ui.tool.type))  # fixes an undo/redo related bug
 
     def colouring_logistics(self, alpha, col):
         """handles actually configuring the drawings onto the canvas when you're done drawing"""
         num_pixels_coloured = 0  # haven't used this variable in any meaningful way yet
+
         if self.ui.tool.type in RECOLOUR_TOOLS and 'pixels_tobe_coloured' in self.loop_save:  # if this tool type recolours pixels
-            for pix in self.loop_save['pixels_tobe_coloured']:
-                pix.recolour(col, alpha, self.ui.tool.overwrite)
+            for pix, rgba in self.loop_save['pixels_tobe_coloured']:
+                if pix.coloured:
+                    continue
+                pix.recolour(rgba[:3], rgba[3], self.ui.tool.overwrite)
                 actual_drawn = self.ui.canvas.layers[-1][pix.coord[1]][pix.coord[0]]
                 draw_hexagon(self.ui.screen, actual_drawn.rgb + (actual_drawn.alpha,),
                              actual_drawn.position, actual_drawn.size)
                 num_pixels_coloured += 1
             self.loop_save['pixels_tobe_coloured'] = []
+        old_num_pixels_coloured = num_pixels_coloured
+        num_pixels_coloured += len(self.loop_save['pixels_drawn'])  # account for ones that were drawn in drawing mode! (e.g. pencil)
         self.loop_save['pixel_history'] = []
         if self.just_finished_drawing and num_pixels_coloured > 0:
+            print("drawing phase has drawn " + str(num_pixels_coloured) + " pixels: " + str(len(self.loop_save['pixels_drawn'])) + " were drawn from the drawing mode and " + str(old_num_pixels_coloured) + " were drawn from the colouring mode")
             # used to be in canv.drawing_mode, but it caused problems since some tools
             # only recolour pixels to canvas after the event calls (in which drawing_mode is called)
             self.ui.canvas.history.override(HistoryEntry(self.ui.canvas, self.ui.tool.type, num_pixels_coloured))
+        for pix in self.loop_save['pixels_drawn']:
+            pix.coloured = False
+            pix.drawn = False
+        self.loop_save['pixels_drawn'] = []
 
 
 def main(n: int = 17, size=(48, 48)) -> None:
@@ -135,4 +166,4 @@ def main(n: int = 17, size=(48, 48)) -> None:
 
 
 if __name__ == '__main__':
-    main(17)
+    main(17, (48, 48))
