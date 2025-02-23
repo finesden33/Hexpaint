@@ -79,6 +79,8 @@ class Pixel:
     selected: bool
     drawn: bool  # if pixel has been drawn during a draw
     coloured: bool  # if pixel has been coloured during a colouring. Useful for when pixels are marked drawn but not coloured
+    in_queue: bool  # if pixel is in a queue for colouring
+
 
     def __init__(self, coord: tuple[int, int], colour: tuple[int, int, int] | None,
                  pos: tuple[float, float] | None, size: float = 1.0, alpha: float = 1.0) -> None:
@@ -93,6 +95,7 @@ class Pixel:
         self.selected = False
         self.drawn = False
         self.coloured = False
+        self.in_queue = False
 
     def copy(self) -> Pixel:
         """returns a copy of itself"""
@@ -202,25 +205,29 @@ class Pixel:
                 index, curr_alpha = 0, alpha
                 while pix_queue and index < len(pix_queue) and curr_alpha > 0:
                     pix = pix_queue[index]
-                    if not keep_mass:
-                        curr_alpha = alpha - self.relation(pix) * alpha_dim
-                    else:
-                        curr_alpha -= alpha_dim / 10  # TODO: make this 10 be a rate we can change
                     # here we use pix_queue as a priority queue as opposed to in spiral mode (opposite use)
-                    if (
-                            self.alike(pix, tolerance, alpha_tolerate, relative_rgba) and curr_alpha > 0):
-                        pix_queue = pix_queue + [x for x in pix.adj if x not in pix_queue and x not in visited]
-                        if pix.alpha != alpha or pix.rgb != colour:
-                            # pix.recolour(colour, curr_alpha, overwrite)
-                            if draw_inloop:
+                    if self.alike(pix, tolerance, alpha_tolerate, relative_rgba):
+                        if not keep_mass:
+                            curr_alpha = alpha - self.relation(pix) * alpha_dim
+                        else:
+                            curr_alpha -= alpha_dim / 10  # TODO: make this 10 be a rate we can change
+                        if curr_alpha > 0:
+                            for x in pix.adj:
+                                if not x.in_queue and x not in visited:
+                                    x.in_queue = True
+                                    pix_queue.append(x)
+                            if pix.alpha != alpha or pix.rgb != colour:
+                                # pix.recolour(colour, curr_alpha, overwrite)
+                                if draw_inloop:
+                                    actual_drawn = canv.layers[-1][pix.coord[1]][pix.coord[0]]
+                                    if actual_drawn.rgb is not None:
+                                        rgba = actual_drawn.rgb + (actual_drawn.alpha,)
+                                        draw_hexagon(screen, rgba, actual_drawn.position, actual_drawn.size)
+                                pix_queue.pop(index)
+                                pix.in_queue = False
+                                changed.append((pix, (colour[0], colour[1], colour[2], curr_alpha)))
+                            visited.add(pix)
 
-                                actual_drawn = canv.layers[-1][pix.coord[1]][pix.coord[0]]
-                                if actual_drawn.rgb is not None:
-                                    rgba = actual_drawn.rgb + (actual_drawn.alpha,)
-                                    draw_hexagon(screen, rgba, actual_drawn.position, actual_drawn.size)
-                            pix_queue.pop(index)
-                        visited.add(pix)
-                        changed.append((pix, (colour[0], colour[1], colour[2], curr_alpha)))
                     else:
                         index += 1
                 return changed

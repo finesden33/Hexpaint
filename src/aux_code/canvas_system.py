@@ -137,6 +137,9 @@ class ToolBelt:
                         visited, pix_queue = set(), []
                     else:
                         visited, pix_queue = {pixel}, pixel.adj
+                        pixel.in_queue = True
+                        for pix in pix_queue:
+                            pix.in_queue = True
                         # draw the first pixel
                         # pixel.recolour(col, alpha, self.overwrite)
                         # actual_drawn = canv.layers[-1][pixel.coord[1]][pixel.coord[0]]
@@ -146,8 +149,10 @@ class ToolBelt:
                     changed = pixel.paint_adj(visited=visited, pix_queue=pix_queue, relative_rgba=original_rgba,
                                               canv=canv, screen=screen, colour=col, alpha=alpha, overwrite=self.overwrite,
                                               alpha_dim=self.alpha_dim / 10, tolerance=self.tolerance,
-                                              alpha_tolerate=self.alpha_tolerate, draw_inloop=True, spiral=self.spiral,
+                                              alpha_tolerate=self.alpha_tolerate, draw_inloop=False, spiral=self.spiral,
                                               keep_mass=self.keep_mass)
+                    print("done fill algo")
+                    pixel.in_queue = False
                     return list(changed) + [(pixel, (col[0], col[1], col[2], alpha))], False
             else:
                 return [], False

@@ -178,4 +178,4 @@ def main(n: int = 17, size=(48, 48)) -> None:
 
 
 if __name__ == '__main__':
-    main(17, (70, 100))
+    main(17, (100, 100))
