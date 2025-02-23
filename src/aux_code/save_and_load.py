@@ -67,42 +67,48 @@ def compress_writing(lst: list) -> str:
     layers, pix_size = lst[0], lst[1]
     height = len(layers[0])
     width = len(layers[0][0])
-    output += str(pix_size) + '\n\n'
+    output += f'{pix_size},{height},{width}\n\n'
+    prev_entry = ''
     for layer in layers:
         for y in range(height):
+            line = ''
             for x in range(width):
                 pixel = layer[y][x]
                 if pixel:
+                    entry = ''
                     r, g, b = pixel['rgb']
                     a = pixel['alpha']
-                    if r == g == b and a == 1:
+                    if r == g == b and r in {0, 255} and a == 1:
                         if r == 255:
-                            output += '1'
+                            entry += '1'
                         elif r == 0:
-                            output += '0'
-                        else:
-                            if r < 10:
-                                output += '00' + str(r)
-                            elif r < 100:
-                                output += '0' + str(r)
-                            else:
-                                output += str(r)
+                            entry += '0'
                     else:
-                        # for colour in [r, g, b]:
-                        #     if colour < 10:
-                        #         output += '00' + str(colour)
-                        #     elif colour < 100:
-                        #         output += '0' + str(colour)
-                        #     else:
-                        #         output += str(colour)
                         # convert to hex
-                        output += f'{r:02x}{g:02x}{b:02x}'
+                        entry += f'{r:02x}{g:02x}{b:02x}'
                         if a != 1:
-                            output += str(int(a * 100))
-                    # (if it's apha=1, then we don't need to write it) and we can infer that later in load
+                            entry += str(int(a * 100))
+                    # (if it's alpha=1, then we don't need to write it) and we can infer that later in load
+                    if prev_entry and prev_entry[0] == '#':
+                        count, p_entry = prev_entry.split('-')
+                        if entry == p_entry:  # format #45-ff00cc23
+                            new_entry = '#' + str(int(count[1:]) + 1) + '-' + p_entry
+                            line = line[:len(line) - len(prev_entry) - 1] + new_entry
+                            prev_entry = new_entry
+                        else:
+                            line += entry
+                            prev_entry = entry
+                    else:
+                        if entry == prev_entry:  # format #45-ff00cc23
+                            entry = '#2-' + prev_entry
+                            line = line[:len(line) - len(prev_entry) - 1] + entry
+                            prev_entry = entry
+                        else:
+                            line += entry
+                            prev_entry = entry
                     if x < width - 1:
-                        output += ','
-            output += '\n'
+                        line += ','
+            output += line + '\n'
         output += '\n'
 
     if output[-1] == '\n':
@@ -114,8 +120,7 @@ def uncompress(file_contents: str) -> list:
     """uncompresses the file contents"""
     layers = []
     file_contents = file_contents.split('\n\n')
-    pix_size = file_contents[0]
-    width, height = 0, 0
+    pix_size, width, height = file_contents[0].split(',')
     for i in range(1, len(file_contents)):
         layer = []
         rows = file_contents[i].split('\n')
@@ -123,23 +128,31 @@ def uncompress(file_contents: str) -> list:
             if not row:  # if we've reached the end of the layer
                 break
             lst = []
-            for x, pixel in enumerate(row.split(',')):
-                if pixel:
-                    if len(pixel) == 1:
-                        if pixel == '1':
-                            r, g, b = 255, 255, 255
-                        else:
-                            r, g, b = 0, 0, 0
-                        alpha = 1.0
+            num_in_row_curr = 0
+            row_elements = row.split(',')
+            row_i = 0
+            while num_in_row_curr < int(width):
+                pixel = row_elements[row_i]
+                count = 1
+                if row_elements[row_i][0] == '#':
+                    pack = row_elements[row_i][0].split('-')
+                    count, pixel = int(pack[0][1:]), pack[1]
+                if len(pixel) == 1:
+                    if pixel == '1':
+                        r, g, b = 255, 255, 255
                     else:
-                        hex_val = pixel[:6]
-                        # if any(['' == hex_val[2 * x: 2 * x + 2] for x in range(3)]):
-                        #     print(hex_val)
-                        r, g, b = int(hex_val[:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16)
-                        alpha = 1.0 if len(pixel) == 6 else int(pixel[6:]) / 100
-                    lst.append({'rgb': (r, g, b), 'alpha': alpha, 'coord': (x, y)})
+                        r, g, b = 0, 0, 0
+                    alpha = 1.0
                 else:
-                    continue
+                    hex_val = pixel[:6]
+                    r, g, b = int(hex_val[:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16)
+                    alpha = 1.0 if len(pixel) == 6 else int(pixel[6:]) / 100
+
+                for c in range(0, count):
+                    lst.append({'rgb': (r, g, b), 'alpha': alpha, 'coord': (num_in_row_curr + c, y)})
+                num_in_row_curr += count
+                if num_in_row_curr > int(width):
+                    raise Exception
             if lst:
                 layer.append(lst)
         layers.append(layer)

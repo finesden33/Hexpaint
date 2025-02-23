@@ -205,6 +205,8 @@ class Pixel:
                 index, curr_alpha = 0, alpha
                 while pix_queue and index < len(pix_queue) and curr_alpha > 0:
                     pix = pix_queue[index]
+                    pix.in_queue = False
+                    visited.add(pix)
                     # here we use pix_queue as a priority queue as opposed to in spiral mode (opposite use)
                     if self.alike(pix, tolerance, alpha_tolerate, relative_rgba):
                         if not keep_mass:
@@ -216,20 +218,20 @@ class Pixel:
                                 if not x.in_queue and x not in visited:
                                     x.in_queue = True
                                     pix_queue.append(x)
+                            pix_queue.pop(index)
+                            pix.in_queue = False
+                            # we only need to actually apply the draw for a meaningful change
                             if pix.alpha != alpha or pix.rgb != colour:
                                 # pix.recolour(colour, curr_alpha, overwrite)
+                                changed.append((pix, (colour[0], colour[1], colour[2], curr_alpha)))
                                 if draw_inloop:
                                     actual_drawn = canv.layers[-1][pix.coord[1]][pix.coord[0]]
                                     if actual_drawn.rgb is not None:
                                         rgba = actual_drawn.rgb + (actual_drawn.alpha,)
                                         draw_hexagon(screen, rgba, actual_drawn.position, actual_drawn.size)
-                                pix_queue.pop(index)
-                                pix.in_queue = False
-                                changed.append((pix, (colour[0], colour[1], colour[2], curr_alpha)))
-                            visited.add(pix)
-
                     else:
                         index += 1
+
                 return changed
         return []
 
