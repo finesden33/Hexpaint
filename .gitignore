@@ -2,3 +2,4 @@
 **/__pycache__/
 .editorconfig
 .gitignore
+src/resources/other

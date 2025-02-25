@@ -6,8 +6,8 @@ from src.aux_code.ui import UI
 from src.aux_code.pygame_configure import pygame, screen_as_image
 
 
-def event_handler(event: pygame.event, ui: UI, x: int, y: int, just_finished_drawing, just_loaded, layer: int,
-                  running: bool, file_name: str, save_loop: dict) -> tuple[bool, bool, bool]:
+def event_handler(event: pygame.event, ui: UI, x: int, y: int, just_finished_drawing, just_started_drawing, just_loaded, layer: int,
+                  running: bool, file_name: str, save_loop: dict) -> tuple[bool, bool, bool, bool]:
     """handles different events"""
     if event.type == pygame.QUIT:
         running = False
@@ -60,10 +60,11 @@ def event_handler(event: pygame.event, ui: UI, x: int, y: int, just_finished_dra
         ui.tool.rainbow_mode = False
 
     # start drawing (depending on the tool type, this may only hold true for one loop (i.e. for single click tools)
-    elif (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+    elif (((event.type == pygame.MOUSEBUTTONDOWN and event.button == 1) or event.type == pygame.FINGERDOWN)
           and not ui.canvas.drawing and (not ui.not_on_canvas(x, y)) # or tool in LINE_TOOLS) TODO?
           and not ui.click_mode):
         ui.canvas.drawing_mode(True, ui.tool)
+        just_started_drawing = True
 
     # finish drawing
     elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and ui.canvas.drawing:
@@ -88,4 +89,4 @@ def event_handler(event: pygame.event, ui: UI, x: int, y: int, just_finished_dra
     # UI release click event
     elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and (ui.click_mode or ui.not_on_canvas(x, y)):
         ui.clicking_mode_switch(False)
-    return just_finished_drawing, just_loaded, running
+    return just_finished_drawing, just_started_drawing, just_loaded, running
