@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import random
 from typing import Any
 
 from src.aux_code.pygame_configure import pygame, math, draw_hexagon
-from src.aux_code.extra_functions import cycle_list, colour_add
+from src.aux_code.extra_functions import cycle_list, colour_add, hsv_to_rgb, rgb_to_hsv
 
 
 class Canvas:
@@ -79,6 +80,8 @@ class Pixel:
     selected: bool
     drawn: bool  # if pixel has been drawn during a draw
     coloured: bool  # if pixel has been coloured during a colouring. Useful for when pixels are marked drawn but not coloured
+    in_queue: bool  # if pixel is in a queue for colouring
+
 
     def __init__(self, coord: tuple[int, int], colour: tuple[int, int, int] | None,
                  pos: tuple[float, float] | None, size: float = 1.0, alpha: float = 1.0) -> None:
@@ -93,6 +96,7 @@ class Pixel:
         self.selected = False
         self.drawn = False
         self.coloured = False
+        self.in_queue = False
 
     def copy(self) -> Pixel:
         """returns a copy of itself"""
@@ -122,15 +126,24 @@ class Pixel:
 
     def recolour(self, colour: tuple[int, int, int] | None, alpha: float = 1.0, overwrite: bool = False) -> None:
         """recolour a pixel"""
+        colour_to_use = colour if colour else (0, 0, 0)
+        deviate = False
+        if deviate:
+            h, s, v = rgb_to_hsv(colour_to_use[0], colour_to_use[1], colour_to_use[2])
+            h = (h + random.randint(-30, 30)) % 360
+            s = min(100, max(0, s + random.randint(-20, 20)))
+            v = min(100, max(0, v + random.randint(-20, 20)))
+            colour_to_use = hsv_to_rgb(h, s, v)
+
         if not overwrite:
             if colour:
-                self.rgb, self.alpha = colour_add(self.rgb, colour, self.alpha, alpha)
+                self.rgb, self.alpha = colour_add(self.rgb, colour_to_use, self.alpha, alpha)
             else:  # erase
                 self.alpha = max(0.0, self.alpha * (1 - alpha))
                 # if self.alpha == 0.0:
                 #     self.rgb = None  # fully erased
         else:
-            self.rgb = colour
+            self.rgb = colour_to_use
             self.alpha = alpha
         self.coloured = True
 
@@ -202,27 +215,33 @@ class Pixel:
                 index, curr_alpha = 0, alpha
                 while pix_queue and index < len(pix_queue) and curr_alpha > 0:
                     pix = pix_queue[index]
-                    if not keep_mass:
-                        curr_alpha = alpha - self.relation(pix) * alpha_dim
-                    else:
-                        curr_alpha -= alpha_dim / 10
+                    pix.in_queue = False
+                    visited.add(pix)
                     # here we use pix_queue as a priority queue as opposed to in spiral mode (opposite use)
-                    if (
-                            self.alike(pix, tolerance, alpha_tolerate, relative_rgba) and curr_alpha > 0):
-                        pix_queue = pix_queue + [x for x in pix.adj if x not in pix_queue and x not in visited]
-                        if pix.alpha != alpha or pix.rgb != colour:
-                            pix.recolour(colour, curr_alpha, overwrite)
-                            if draw_inloop:
-
-                                actual_drawn = canv.layers[-1][pix.coord[1]][pix.coord[0]]
-                                if actual_drawn.rgb is not None:
-                                    rgba = actual_drawn.rgb + (actual_drawn.alpha,)
-                                    draw_hexagon(screen, rgba, actual_drawn.position, actual_drawn.size)
+                    if self.alike(pix, tolerance, alpha_tolerate, relative_rgba):
+                        if not keep_mass:
+                            curr_alpha = alpha - self.relation(pix) * alpha_dim
+                        else:
+                            curr_alpha -= alpha_dim / 10  # TODO: make this 10 be a rate we can change
+                        if curr_alpha > 0:
+                            for x in pix.adj:
+                                if not x.in_queue and x not in visited:
+                                    x.in_queue = True
+                                    pix_queue.append(x)
                             pix_queue.pop(index)
-                        visited.add(pix)
-                        changed.append((pix, (colour[0], colour[1], colour[2], curr_alpha)))
+                            pix.in_queue = False
+                            # we only need to actually apply the draw for a meaningful change
+                            if pix.alpha != alpha or pix.rgb != colour:
+                                # pix.recolour(colour, curr_alpha, overwrite)
+                                changed.append((pix, (colour[0], colour[1], colour[2], curr_alpha)))
+                                if draw_inloop:
+                                    actual_drawn = canv.layers[-1][pix.coord[1]][pix.coord[0]]
+                                    if actual_drawn.rgb is not None:
+                                        rgba = actual_drawn.rgb + (actual_drawn.alpha,)
+                                        draw_hexagon(screen, rgba, actual_drawn.position, actual_drawn.size)
                     else:
                         index += 1
+
                 return changed
         return []
 

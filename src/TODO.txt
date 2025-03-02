@@ -4,7 +4,10 @@ TODO: change canvas default background to actual algo that checkers the canvas i
 TODO: start canvas should be alpha=0, white (implement actual alpha effect of pixels, not just by-layer)
 TODO: change program so that pixel colour displays as sum of all layers + background default (white by default)
 
+TODO: compression to file: dictionary of lossless comp replacements
+
 TODO: fine-tuning for rainbow mode (e.g. only change hue, or alpha, or red blue or green etc)
+TODO: rainbow range for all draw mode (special colour mode) i.e. so fill will do a jumble within a range - i.e. whenever placing a pixel, it will deviate randomly within a range. Select range: +-velocity, saturation and hue. OR, have rgb deviations (both affect one another)
 
 TODO: undo & redo hold down. Also, force redraw after several undos since those tend to make draw bugs
 
