@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import random
 from typing import Any
 
 from src.aux_code.pygame_configure import pygame, math, draw_hexagon
-from src.aux_code.extra_functions import cycle_list, colour_add
+from src.aux_code.extra_functions import cycle_list, colour_add, hsv_to_rgb, rgb_to_hsv
 
 
 class Canvas:
@@ -125,15 +126,24 @@ class Pixel:
 
     def recolour(self, colour: tuple[int, int, int] | None, alpha: float = 1.0, overwrite: bool = False) -> None:
         """recolour a pixel"""
+        colour_to_use = colour if colour else (0, 0, 0)
+        deviate = False
+        if deviate:
+            h, s, v = rgb_to_hsv(colour_to_use[0], colour_to_use[1], colour_to_use[2])
+            h = (h + random.randint(-30, 30)) % 360
+            s = min(100, max(0, s + random.randint(-20, 20)))
+            v = min(100, max(0, v + random.randint(-20, 20)))
+            colour_to_use = hsv_to_rgb(h, s, v)
+
         if not overwrite:
             if colour:
-                self.rgb, self.alpha = colour_add(self.rgb, colour, self.alpha, alpha)
+                self.rgb, self.alpha = colour_add(self.rgb, colour_to_use, self.alpha, alpha)
             else:  # erase
                 self.alpha = max(0.0, self.alpha * (1 - alpha))
                 # if self.alpha == 0.0:
                 #     self.rgb = None  # fully erased
         else:
-            self.rgb = colour
+            self.rgb = colour_to_use
             self.alpha = alpha
         self.coloured = True
 

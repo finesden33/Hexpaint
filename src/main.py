@@ -105,7 +105,7 @@ class Program:
             # fixing line skidding (drawing lines between two points in free drawing when moving too fast)
             if self.ui.tool.type in {'PENCIL'} and len(self.loop_save['pixel_history']) > 1:
                 pix1, pix2 = self.loop_save['pixel_history'][-2], self.loop_save['pixel_history'][-1]
-                print(len(self.loop_save['pixel_history']))
+                # print(len(self.loop_save['pixel_history']))
                 if pix1[1] is None or pix2[1] is None or pix1[1] not in pix2[1].adj:
                     fix_pixels = list(
                         self.ui.canvas.get_line(pix1[0], pix2[0], self.ui.canvas.layers[layer][0][0].size, self.ui.screen,

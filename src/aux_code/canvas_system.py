@@ -173,7 +173,7 @@ class ToolBelt:
             actual_pos = pixel.position if pixel else pos
             if not self.positions:  # if we haven't saved any coord yet
                 self.positions.append(actual_pos)  # save the start vertex
-                print(self.positions)
+                #print(self.positions)
             elif len(self.positions) > 1:
                 if pixel is not None:
                     self.positions[1] = actual_pos

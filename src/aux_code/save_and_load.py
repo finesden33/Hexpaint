@@ -69,9 +69,11 @@ def compress_writing(lst: list) -> str:
     width = len(layers[0][0])
     output += f'{pix_size},{height},{width}\n\n'
     prev_entry = ''
+    all_uniques = set()
     for layer in layers:
         for y in range(height):
             line = ''
+            prev_entry = ''
             for x in range(width):
                 pixel = layer[y][x]
                 if pixel:
@@ -88,6 +90,7 @@ def compress_writing(lst: list) -> str:
                         entry += f'{r:02x}{g:02x}{b:02x}'
                         if a != 1:
                             entry += str(int(a * 100))
+                        all_uniques.add(entry)
                     # (if it's alpha=1, then we don't need to write it) and we can infer that later in load
                     if prev_entry and prev_entry[0] == '#':
                         count, p_entry = prev_entry.split('-')
@@ -131,11 +134,12 @@ def uncompress(file_contents: str) -> list:
             num_in_row_curr = 0
             row_elements = row.split(',')
             row_i = 0
-            while num_in_row_curr < int(width):
+            while row_i < len(row_elements) and num_in_row_curr < int(height):
                 pixel = row_elements[row_i]
                 count = 1
                 if row_elements[row_i][0] == '#':
-                    pack = row_elements[row_i][0].split('-')
+                    pack = row_elements[row_i].split('-')
+                    assert len(pack) == 2
                     count, pixel = int(pack[0][1:]), pack[1]
                 if len(pixel) == 1:
                     if pixel == '1':
@@ -151,12 +155,23 @@ def uncompress(file_contents: str) -> list:
                 for c in range(0, count):
                     lst.append({'rgb': (r, g, b), 'alpha': alpha, 'coord': (num_in_row_curr + c, y)})
                 num_in_row_curr += count
-                if num_in_row_curr > int(width):
+                row_i += 1
+                if num_in_row_curr > int(height):
                     raise Exception
             if lst:
                 layer.append(lst)
+                if len(lst) > int(height):
+                    print("um yeah lol")
         layers.append(layer)
     return [layers, pix_size]
+
+#
+# # huffman encoding
+# def encode_colours(file: str, all_uniques: set) -> str:
+#     for unique in all_uniques:
+#         file = file.replace(unique, f'#{len(unique)}')
+#
+#     return new_file
 
 #
 # -2330012231_64_388 => rgb = (233, 1, 223), alpha = 1.0, position = (64, 388)
